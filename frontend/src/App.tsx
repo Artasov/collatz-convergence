@@ -441,13 +441,23 @@ export default function App() {
                 </Typography>
                 <ControlPanel
                   xyLimitInput={xyLimitInput}
-                  setXyLimitInput={(value) => onNumericInputChange(value, setXyLimitInput)}
+                  setXyLimitInput={(value) => onUnsignedNumericInputChange(value, setXyLimitInput)}
                   networkLimitInput={networkLimitInput}
                   setNetworkLimitInput={(value) =>
-                    onNumericInputChange(value, setNetworkLimitInput)
+                    onUnsignedNumericInputChange(value, setNetworkLimitInput)
                   }
                   treeLayersInput={treeLayersInput}
-                  setTreeLayersInput={(value) => onNumericInputChange(value, setTreeLayersInput)}
+                  setTreeLayersInput={(value) =>
+                    onUnsignedNumericInputChange(value, setTreeLayersInput)
+                  }
+                  treeEvenTurnInput={treeEvenTurnInput}
+                  setTreeEvenTurnInput={(value) =>
+                    onSignedNumericInputChange(value, setTreeEvenTurnInput)
+                  }
+                  treeOddTurnInput={treeOddTurnInput}
+                  setTreeOddTurnInput={(value) =>
+                    onSignedNumericInputChange(value, setTreeOddTurnInput)
+                  }
                   chartType={chartType}
                   setChartType={setChartType}
                   metric={metric}
@@ -578,7 +588,11 @@ export default function App() {
                   <NetworkChartView data={networkData} />
                 ) : null}
                 {!loading && chartType === 'tree' && treeData ? (
-                  <ConvergenceTreeView data={treeData} />
+                  <ConvergenceTreeView
+                    data={treeData}
+                    evenTurnDeg={treeEvenTurnDeg}
+                    oddTurnDeg={treeOddTurnDeg}
+                  />
                 ) : null}
               </Paper>
 

@@ -5,6 +5,8 @@ import type { ConvergenceTreeData } from '../types';
 
 interface Props {
   data: ConvergenceTreeData;
+  evenTurnDeg: number;
+  oddTurnDeg: number;
 }
 
 interface NodePoint {
@@ -43,7 +45,7 @@ function toFinite(value: number, fallback: number): number {
   return Number.isFinite(value) ? value : fallback;
 }
 
-export function ConvergenceTreeView({ data }: Props) {
+export function ConvergenceTreeView({ data, evenTurnDeg, oddTurnDeg }: Props) {
   const theme = useTheme();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const zoomRef = useRef(1);
@@ -138,7 +140,7 @@ export function ConvergenceTreeView({ data }: Props) {
     );
     const innerWidth = Math.max(1, width - paddingX * 2);
 
-    const nodes: NodePoint[] = data.nodes.map((node) => {
+    const baseNodes: NodePoint[] = data.nodes.map((node) => {
       const depth = Math.max(0, Math.min(safeMaxDepth, toFinite(node.depth, 0)));
       const normalizedX = clamp(toFinite(node.x, 0.5), 0, 1);
       return {
@@ -151,6 +153,64 @@ export function ConvergenceTreeView({ data }: Props) {
       };
     });
 
+    const rootNode = baseNodes.find((node) => node.value === 1) ?? baseNodes[0];
+    const rootX = rootNode?.x ?? paddingX;
+    const rootY = rootNode?.y ?? height - paddingBottom;
+
+    const angleByDepth: number[] = new Array(safeMaxDepth + 1).fill(0);
+    for (let depth = 1; depth <= safeMaxDepth; depth += 1) {
+      const turnDeg = depth % 2 === 0 ? evenTurnDeg : oddTurnDeg;
+      angleByDepth[depth] = angleByDepth[depth - 1] + (turnDeg * Math.PI) / 180;
+    }
+
+    const rotatedNodes = baseNodes.map((node) => {
+      if (node.depth <= 0) {
+        return node;
+      }
+      const angle = angleByDepth[Math.min(node.depth, safeMaxDepth)];
+      const cos = Math.cos(angle);
+      const sin = Math.sin(angle);
+      const dx = node.x - rootX;
+      const dy = node.y - rootY;
+      return {
+        ...node,
+        x: rootX + dx * cos - dy * sin,
+        y: rootY + dx * sin + dy * cos,
+      };
+    });
+
+    let minX = Number.POSITIVE_INFINITY;
+    let maxX = Number.NEGATIVE_INFINITY;
+    let minY = Number.POSITIVE_INFINITY;
+    let maxY = Number.NEGATIVE_INFINITY;
+    for (const node of rotatedNodes) {
+      if (node.x < minX) {
+        minX = node.x;
+      }
+      if (node.x > maxX) {
+        maxX = node.x;
+      }
+      if (node.y < minY) {
+        minY = node.y;
+      }
+      if (node.y > maxY) {
+        maxY = node.y;
+      }
+    }
+
+    const rotatedSpanWidth = Math.max(1, maxX - minX);
+    const rotatedSpanHeight = Math.max(1, maxY - minY);
+    const rotatedWidth = Math.max(width, rotatedSpanWidth + paddingX * 2);
+    const rotatedHeight = Math.max(height, rotatedSpanHeight + paddingTop + paddingBottom);
+    const offsetX = paddingX - minX + (rotatedWidth - (rotatedSpanWidth + paddingX * 2)) / 2;
+    const offsetY = paddingTop - minY + (rotatedHeight - (rotatedSpanHeight + paddingTop + paddingBottom)) / 2;
+
+    const nodes = rotatedNodes.map((node) => ({
+      ...node,
+      x: node.x + offsetX,
+      y: node.y + offsetY,
+    }));
+
     const nodeById = new Map(nodes.map((node) => [node.id, node]));
     const edges: EdgePoint[] = data.edges
       .map((edge) => ({
@@ -162,13 +222,13 @@ export function ConvergenceTreeView({ data }: Props) {
       );
 
     return {
-      width,
-      height,
+      width: rotatedWidth,
+      height: rotatedHeight,
       maxNodesInLayer,
       nodes,
       edges,
     };
-  }, [containerSize.height, containerSize.width, data.edges, data.max_depth, data.nodes]);
+  }, [containerSize.height, containerSize.width, data.edges, data.max_depth, data.nodes, evenTurnDeg, oddTurnDeg]);
 
   useEffect(() => {
     const fitY = containerSize.height / layout.height;
@@ -378,7 +438,7 @@ export function ConvergenceTreeView({ data }: Props) {
         }}
       >
         <Typography variant='caption' color='text.secondary'>
-          Layered directed graph: nodes on one horizontal line have the same distance to 1.
+          Layered directed graph with cumulative per-depth turns: even={evenTurnDeg} deg, odd={oddTurnDeg} deg.
         </Typography>
       </Box>
     </Box>
