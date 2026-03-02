@@ -68,26 +68,26 @@ export function ControlPanel(props: Props) {
         >
             <Box sx={{display: 'flex', alignItems: 'center', gap: 0.55}}>
                 <FormControl size='small' sx={isSidebar ? {flex: 1} : {minWidth: {xs: '100%', md: 290}}}>
-                    <InputLabel id='chart-type-label'>Chart type</InputLabel>
+                    <InputLabel id='chart-type-label'>Type</InputLabel>
                     <Select
                         labelId='chart-type-label'
                         value={props.chartType}
-                        label='Chart type'
+                        label='Type'
                         onChange={(event) => props.setChartType(event.target.value as ChartType)}
-                        inputProps={{'aria-label': 'Chart type'}}
+                        inputProps={{'aria-label': 'Type'}}
                     >
                         <MenuItem value='xy'>XY line</MenuItem>
                         <MenuItem value='tree'>Convergence tree</MenuItem>
-                        <MenuItem value='tree3d'>3D tree (coral)</MenuItem>
+                        <MenuItem value='tree3d'>3D tree</MenuItem>
                         <MenuItem value='path'>Single number trace</MenuItem>
-                        <MenuItem value='network'>Transition network (hairball)</MenuItem>
+                        <MenuItem value='network'>Transition network</MenuItem>
                     </Select>
                 </FormControl>
                 <Tooltip title='Choose visual mode. Each mode has its own settings below.' arrow>
                     <IconButton
                         size='small'
                         sx={{p: 0, color: 'text.secondary', alignSelf: 'center'}}
-                        aria-label='Chart type info'
+                        aria-label='Type info'
                     >
                         <InfoOutlinedIcon sx={{fontSize: 15}}/>
                     </IconButton>
@@ -153,7 +153,7 @@ export function ControlPanel(props: Props) {
                                 label={props.chartType === 'tree3d' ? 'Layers (3D tree)' : 'Layers (Tree)'}
                                 description={
                                     props.chartType === 'tree3d'
-                                        ? 'Depth of reverse Collatz tree used as source for 3D coral-like line rendering.'
+                                        ? 'Depth of reverse Collatz tree used as source for 3D line rendering.'
                                         : 'Depth of reverse Collatz tree starting from 1. Layer 1 contains 1, layer 2 contains 2, layer 3 contains 4, and so on.'
                                 }
                             />

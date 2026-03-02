@@ -340,13 +340,13 @@ export default function App() {
                 : 'XY line: peak value reached by each start value';
         }
         if (chartType === 'network') {
-            return 'Transition network (hairball) for range 1..X';
+            return 'Transition network for range 1..X';
         }
         if (chartType === 'path') {
             return `Single trajectory for n=${pathStartN}`;
         }
         if (chartType === 'tree3d') {
-            return `3D coral tree (reverse Collatz, ${debouncedTreeLayers} layers)`;
+            return `3D tree (reverse Collatz, ${debouncedTreeLayers} layers)`;
         }
         return `Directed convergence graph (reverse tree, ${debouncedTreeLayers} layers)`;
     }, [chartType, metric, debouncedTreeLayers, pathStartN]);
@@ -367,7 +367,7 @@ export default function App() {
         if (chartType === 'tree') {
             return `Reverse Collatz tree from 1, expanded to ${debouncedTreeLayers} layers. Turn: ${turnText} deg per layer.`;
         }
-        return `3D line-only coral rendering of reverse Collatz tree from 1. Layers: ${debouncedTreeLayers}, turn: ${turnText} deg per layer.`;
+        return `3D line-only rendering of reverse Collatz tree from 1. Layers: ${debouncedTreeLayers}, turn: ${turnText} deg per layer.`;
     }, [chartType, metric, debouncedTreeLayers, treeTurnInput]);
 
     const mainInsights = useMemo(
@@ -721,7 +721,7 @@ export default function App() {
                                                 app
                                                 compares several projections of the same process: single paths, XY
                                                 metrics,
-                                                dense transition network, reverse convergence tree, and 3D coral view.
+                        dense transition network, reverse convergence tree, and 3D tree view.
                                             </Typography>
                                             <Typography variant='body2' color='text.secondary' sx={{mt: 0.8}}>
                                                 Important detail in this UI: trajectories stop at 1 as terminal point

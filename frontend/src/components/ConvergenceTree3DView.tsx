@@ -123,17 +123,39 @@ function lengthVec(value: Vec3): number {
 }
 
 function normalizeVec(value: Vec3, fallback: Vec3): Vec3 {
-    const length = lengthVec(value);
-    if (length < 1e-9) {
-        return fallback;
-    }
-    return scaleVec(value, 1 / length);
+  const length = lengthVec(value);
+  if (length < 1e-9) {
+    return fallback;
+  }
+  return scaleVec(value, 1 / length);
+}
+
+function bendPointByDepth(point: Vec3, depth: number, turnRad: number): Vec3 {
+  if (depth <= 0 || turnRad === 0) {
+    return point;
+  }
+
+  const bendAngle = depth * turnRad;
+  const bendCos = Math.cos(bendAngle);
+  const bendSin = Math.sin(bendAngle);
+  const bentX = point.x * bendCos - point.y * bendSin;
+  const bentY = point.x * bendSin + point.y * bendCos;
+
+  const twistAngle = depth * turnRad * 0.28;
+  const twistCos = Math.cos(twistAngle);
+  const twistSin = Math.sin(twistAngle);
+
+  return {
+    x: bentX * twistCos - point.z * twistSin,
+    y: bentY,
+    z: bentX * twistSin + point.z * twistCos,
+  };
 }
 
 function getRootId(data: ConvergenceTreeData, rawNodeById: Map<string, (typeof data.nodes)[number]>): string {
-    if (data.root && rawNodeById.has(data.root)) {
-        return data.root;
-    }
+  if (data.root && rawNodeById.has(data.root)) {
+    return data.root;
+  }
     const byValue = data.nodes.find((node) => toFinite(node.value, 0) === 1);
     if (byValue) {
         return byValue.id;
@@ -233,15 +255,14 @@ function buildGeometry(data: ConvergenceTreeData, turnDeg: number): Layout3D {
 
             const depthRatio = safeMaxDepth === 0 ? 0 : depth / safeMaxDepth;
             const parentPhase = phaseById.get(parentId) ?? 0;
-            const sourceNode = rawNodeById.get(nodeId);
-            const value = sourceNode ? Math.abs(toFinite(sourceNode.value, 0)) : 0;
-            const hashUnit = ((value * 92821 + depth * 6899 + siblingIndex * 97) % 1000) / 1000;
-            const fan = Math.PI * (0.34 + depthRatio * 0.22);
-            const phase =
-                parentPhase
-                + centered * fan
-                + turnRad * depth
-                + (hashUnit - 0.5) * (0.26 + depthRatio * 0.18);
+      const sourceNode = rawNodeById.get(nodeId);
+      const value = sourceNode ? Math.abs(toFinite(sourceNode.value, 0)) : 0;
+      const hashUnit = ((value * 92821 + depth * 6899 + siblingIndex * 97) % 1000) / 1000;
+      const fan = Math.PI * (0.34 + depthRatio * 0.22);
+      const phase =
+        parentPhase
+        + centered * fan
+        + (hashUnit - 0.5) * (0.26 + depthRatio * 0.18);
 
             const lateral = normalizeVec(
                 {
@@ -251,10 +272,9 @@ function buildGeometry(data: ConvergenceTreeData, turnDeg: number): Layout3D {
                 },
                 {x: 1, y: 0, z: 0},
             );
-            const turnBoost = 1 + Math.min(0.55, Math.abs(turnDeg) / 120);
-            const siblingSpread = siblingCount <= 1 ? 0.95 : 1 + Math.abs(centered) * 0.58;
-            const radialStep = (0.17 + depthRatio * 0.44) * siblingSpread * turnBoost;
-            const verticalStep = 0.62 + depthRatio * 0.09;
+      const siblingSpread = siblingCount <= 1 ? 0.95 : 1 + Math.abs(centered) * 0.58;
+      const radialStep = (0.17 + depthRatio * 0.44) * siblingSpread;
+      const verticalStep = 0.62 + depthRatio * 0.09;
             const candidatePosition = addVec(
                 parentPosition,
                 {
@@ -288,16 +308,16 @@ function buildGeometry(data: ConvergenceTreeData, turnDeg: number): Layout3D {
         const count = layerIds.length;
         for (let index = 0; index < count; index += 1) {
             const nodeId = layerIds[index];
-            if (positionById.has(nodeId)) {
-                continue;
-            }
-            const ratio = count <= 1 ? 0.5 : index / (count - 1);
-            const angle = -Math.PI + ratio * Math.PI * 2 + turnRad * depth;
-            const radius = 0.2 + depth * 0.11;
-            const y = depth * 0.9;
-            const position = {
-                x: Math.cos(angle) * radius,
-                y,
+      if (positionById.has(nodeId)) {
+        continue;
+      }
+      const ratio = count <= 1 ? 0.5 : index / (count - 1);
+      const angle = -Math.PI + ratio * Math.PI * 2;
+      const radius = 0.2 + depth * 0.11;
+      const y = depth * 0.9;
+      const position = {
+        x: Math.cos(angle) * radius,
+        y,
                 z: Math.sin(angle) * radius,
             };
             positionById.set(nodeId, position);
@@ -306,19 +326,21 @@ function buildGeometry(data: ConvergenceTreeData, turnDeg: number): Layout3D {
         }
     }
 
-    const nodes: Node3D[] = data.nodes
-        .map((node) => {
-            const position = positionById.get(node.id);
-            if (!position) {
-                return null;
-            }
-            return {
-                id: node.id,
-                value: toFinite(node.value, 0),
-                depth: depthByNodeId.get(node.id) ?? 0,
-                position,
-            };
-        })
+  const nodes: Node3D[] = data.nodes
+    .map((node) => {
+      const basePosition = positionById.get(node.id);
+      if (!basePosition) {
+        return null;
+      }
+      const depth = depthByNodeId.get(node.id) ?? 0;
+      const position = bendPointByDepth(basePosition, depth, turnRad);
+      return {
+        id: node.id,
+        value: toFinite(node.value, 0),
+        depth,
+        position,
+      };
+    })
         .filter((node): node is Node3D => node !== null);
 
     const nodeById = new Map(nodes.map((node) => [node.id, node]));
@@ -814,7 +836,7 @@ export function ConvergenceTree3DView({data, turnDeg}: Props) {
                 }}
             >
                 <Typography variant='caption' color='text.secondary'>
-                    3D coral tree: drag to orbit, wheel to zoom, Ctrl+drag to pan. Turn={turnDeg} deg.
+                    3D tree: drag to orbit, wheel to zoom, Ctrl+drag to pan. Turn={turnDeg} deg.
                 </Typography>
             </Box>
         </Box>
