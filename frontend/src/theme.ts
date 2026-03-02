@@ -59,7 +59,10 @@ export const appTheme = createTheme({
         MuiPaper: {
             styleOverrides: {
                 root: {
+                    backgroundColor: 'rgba(255, 255, 255, 0.04)',
                     backgroundImage: 'none',
+                    backdropFilter: 'blur(16px)',
+                    WebkitBackdropFilter: 'blur(16px)',
                     border: 'none',
                 },
             },

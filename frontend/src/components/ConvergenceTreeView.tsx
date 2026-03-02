@@ -35,8 +35,8 @@ interface Layout2D {
 }
 
 interface HoverState {
-    x: number;
-    y: number;
+    localX: number;
+    localY: number;
     title: string;
     lines: string[];
 }
@@ -415,15 +415,12 @@ export function ConvergenceTreeView({data, turnDeg}: Props) {
                 }
                 return;
             }
-            if (
-                hoverNodeIdRef.current === hoveredNode.id
-            ) {
-                return;
-            }
             hoverNodeIdRef.current = hoveredNode.id;
+            const nodeScreenX = hoveredNode.x * currentZoom + currentPan.x;
+            const nodeScreenY = hoveredNode.y * currentZoom + currentPan.y;
             setHover({
-                x: event.clientX,
-                y: event.clientY,
+                localX: nodeScreenX,
+                localY: nodeScreenY,
                 title: `Value ${hoveredNode.value}`,
                 lines: [`Steps to 1: ${hoveredNode.depth}`, `Hits across starts: ${hoveredNode.hits}`],
             });
@@ -489,14 +486,13 @@ export function ConvergenceTreeView({data, turnDeg}: Props) {
                 <Paper
                     elevation={6}
                     sx={{
-                        position: 'fixed',
-                        left: hover.x + 14,
-                        top: hover.y + 14,
+                        position: 'absolute',
+                        left: clamp(hover.localX + 14, 8, containerSize.width - 208),
+                        top: clamp(hover.localY + 14, 8, containerSize.height - 92),
                         px: 1.2,
                         py: 1,
                         border: '1px solid',
                         borderColor: 'divider',
-                        bgcolor: 'rgba(16, 21, 40, 0.97)',
                         pointerEvents: 'none',
                         minWidth: 190,
                         zIndex: 25,

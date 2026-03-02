@@ -59,8 +59,8 @@ interface ProjectedPoint {
 }
 
 interface HoverNodeState {
-    clientX: number;
-    clientY: number;
+    localX: number;
+    localY: number;
     value: number;
     depth: number;
 }
@@ -708,8 +708,8 @@ export function ConvergenceTree3DView({data, turnDeg}: Props) {
             return;
         }
         setHoverNode({
-            clientX,
-            clientY,
+            localX: hit.x,
+            localY: hit.y,
             value: hit.value,
             depth: hit.layer,
         });
@@ -802,9 +802,9 @@ export function ConvergenceTree3DView({data, turnDeg}: Props) {
             {hoverNode ? (
                 <Box
                     sx={{
-                        position: 'fixed',
-                        left: hoverNode.clientX + 12,
-                        top: hoverNode.clientY + 12,
+                        position: 'absolute',
+                        left: clamp(hoverNode.localX + 12, 8, containerSize.width - 196),
+                        top: clamp(hoverNode.localY + 12, 8, containerSize.height - 84),
                         px: 1.15,
                         py: 0.85,
                         border: '1px solid',

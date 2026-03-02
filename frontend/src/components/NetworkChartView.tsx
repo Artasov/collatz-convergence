@@ -192,7 +192,6 @@ export function NetworkChartView({data}: Props) {
                         py: 1,
                         border: '1px solid',
                         borderColor: 'divider',
-                        bgcolor: 'rgba(16, 21, 40, 0.97)',
                         pointerEvents: 'none',
                         minWidth: 190,
                         zIndex: 30,

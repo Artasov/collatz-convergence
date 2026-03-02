@@ -51,7 +51,7 @@ const TREE_WARNING_SKIP_KEY = 'lothar_collatz_skip_tree_warning';
 
 function InsightCard(props: Insight) {
     return (
-        <Paper sx={{p: 1.5, background: 'linear-gradient(180deg, rgba(28,33,57,0.9), rgba(18,21,37,0.95))'}}>
+        <Paper sx={{p: 1.5}}>
             <Typography variant='caption' color='text.secondary'>
                 {props.label}
             </Typography>
@@ -663,10 +663,7 @@ export default function App() {
                 <Stack direction={{xs: 'column', lg: 'row'}} spacing={2} alignItems='flex-start'>
                     <Box sx={{width: {xs: '100%', lg: 360}, flexShrink: 0}}>
                         <Stack spacing={2} sx={{position: {lg: 'sticky'}, top: {lg: 16}}}>
-                            <Paper sx={{
-                                p: 1.5,
-                                background: 'linear-gradient(135deg, rgba(32,39,75,0.92), rgba(14,17,31,0.96))'
-                            }}>
+                            <Paper sx={{p: 1.5}}>
                                 <Stack spacing={1.1}>
                                     <Typography variant='h5' sx={{fontWeight: 800, lineHeight: 1.15}}>
                                         LotharCollatz Visualizer
@@ -746,7 +743,7 @@ export default function App() {
                                 </Stack>
                             </Paper>
 
-                            <Paper sx={{p: 1.5, bgcolor: 'rgba(17, 23, 42, 0.92)'}}>
+                            <Paper sx={{p: 1.5}}>
                                 <ControlPanel
                                     xyLimitInput={xyLimitInput}
                                     setXyLimitInput={(value) => onUnsignedNumericInputChange(value, setXyLimitInput)}
@@ -780,7 +777,7 @@ export default function App() {
                             </Paper>
 
                             {summary && chartType !== 'path' ? (
-                                <Paper sx={{p: 1.4, bgcolor: 'rgba(17, 23, 42, 0.92)'}}>
+                                <Paper sx={{p: 1.4}}>
                                     <Typography variant='subtitle2' sx={{mb: 0.55, fontWeight: 700}}>
                                         Quick summary
                                     </Typography>
@@ -822,7 +819,7 @@ export default function App() {
 
                     <Box sx={{minWidth: 0, flex: 1}}>
                         <Stack spacing={2}>
-                            <Paper sx={{p: 1.6, borderRadius: 1, bgcolor: 'rgba(17, 23, 42, 0.92)'}}>
+                            <Paper sx={{p: 1.6, borderRadius: 1}}>
                                 <Typography variant='h6' sx={{mb: 0.6, fontWeight: 700}}>
                                     {chartTitle}
                                 </Typography>
@@ -879,7 +876,7 @@ export default function App() {
                             </Paper>
 
                             {histogramData.length > 0 ? (
-                                <Paper sx={{p: 1.6, borderRadius: 1, bgcolor: 'rgba(17, 23, 42, 0.92)'}}>
+                                <Paper sx={{p: 1.6, borderRadius: 1}}>
                                     <Typography variant='h6' sx={{mb: 0.6, fontWeight: 700}}>
                                         Value occurrence histogram (1..X)
                                     </Typography>
