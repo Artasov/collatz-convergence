@@ -15,7 +15,7 @@ export function PathChartView({points}: Props) {
             sx={{
                 borderRadius: 1,
                 overflow: 'visible',
-                bgcolor: 'rgba(11, 14, 30, 0.6)',
+                bgcolor: 'transparent',
             }}
         >
             <ResponsiveContainer width='100%' height={280}>

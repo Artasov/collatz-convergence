@@ -591,8 +591,6 @@ export function ConvergenceTree3DView({data, turnDeg}: Props) {
         context.lineCap = 'round';
         context.lineJoin = 'round';
         context.clearRect(0, 0, containerSize.width, containerSize.height);
-        context.fillStyle = 'rgba(8, 10, 24, 0.78)';
-        context.fillRect(0, 0, containerSize.width, containerSize.height);
 
         const focal = Math.min(containerSize.width, containerSize.height) * 0.84 * zoom;
         const centerX = pan.x;
@@ -778,7 +776,7 @@ export function ConvergenceTree3DView({data, turnDeg}: Props) {
             sx={{
                 borderRadius: 1,
                 overflow: 'hidden',
-                bgcolor: 'rgba(8, 10, 24, 0.78)',
+                bgcolor: 'transparent',
                 height: {xs: 440, md: 620},
                 position: 'relative',
                 cursor: drag ? 'grabbing' : 'grab',
@@ -832,7 +830,7 @@ export function ConvergenceTree3DView({data, turnDeg}: Props) {
                     bottom: 0,
                     px: 1.2,
                     py: 0.75,
-                    bgcolor: 'rgba(8,10,24,0.72)',
+                    bgcolor: 'transparent',
                 }}
             >
                 <Typography variant='caption' color='text.secondary'>

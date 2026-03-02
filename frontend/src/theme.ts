@@ -59,7 +59,7 @@ export const appTheme = createTheme({
         MuiPaper: {
             styleOverrides: {
                 root: {
-                    backgroundColor: 'rgba(255, 255, 255, 0.04)',
+                    backgroundColor: 'rgba(255, 255, 255, 0.01)',
                     backgroundImage: 'none',
                     backdropFilter: 'blur(16px)',
                     WebkitBackdropFilter: 'blur(16px)',
@@ -70,6 +70,9 @@ export const appTheme = createTheme({
         MuiAccordion: {
             styleOverrides: {
                 root: {
+                    backgroundColor: 'rgba(255, 255, 255, 0.01)',
+                    backdropFilter: 'blur(16px)',
+                    WebkitBackdropFilter: 'blur(16px)',
                     margin: '0 !important',
                     '&.Mui-expanded': {
                         margin: '0 !important',

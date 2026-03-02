@@ -72,7 +72,7 @@ function ChartLoadingState() {
                 sx={{
                     height: {xs: 280, md: 460},
                     borderRadius: 1,
-                    bgcolor: 'rgba(8, 10, 24, 0.72)',
+                    bgcolor: 'transparent',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -678,7 +678,9 @@ export default function App() {
                                                 mt: '10px !important',
                                                 mb: 0,
                                             },
-                                            bgcolor: 'rgba(9, 12, 28, 0.55)',
+                                            bgcolor: 'rgba(255, 255, 255, 0.01)',
+                                            backdropFilter: 'blur(16px)',
+                                            WebkitBackdropFilter: 'blur(16px)',
                                             borderRadius: '10px !important',
                                             overflow: 'hidden',
                                             '&&.Mui-expanded': {

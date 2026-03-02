@@ -265,7 +265,7 @@ export function ConvergenceTreeView({data, turnDeg}: Props) {
         () => buildLayout(data, turnDeg, containerSize.height),
         [containerSize.height, data, turnDeg],
     );
-    const showLabels = zoom >= 0.55 && layout.nodes.length <= 2600;
+    const showLabels = zoom >= 0.08;
 
     const edgeElements = useMemo(
         () => layout.edges.map((edge, index) => {
@@ -309,8 +309,9 @@ export function ConvergenceTreeView({data, turnDeg}: Props) {
         () => layout.nodes.map((node) => {
             const digits = String(Math.abs(node.value)).length;
             const fontSize = clamp(
-                layout.nodeRadius * (digits >= 6 ? 0.54 : digits >= 4 ? 0.62 : 0.72),
-                4.5,
+                layout.nodeRadius
+                * (digits >= 10 ? 0.4 : digits >= 8 ? 0.46 : digits >= 6 ? 0.54 : digits >= 4 ? 0.62 : 0.72),
+                2.8,
                 8.5,
             );
             return (
@@ -455,7 +456,7 @@ export function ConvergenceTreeView({data, turnDeg}: Props) {
             }}
             sx={{
                 borderRadius: 1,
-                bgcolor: 'rgba(8, 10, 24, 0.78)',
+                bgcolor: 'transparent',
                 overflow: 'visible',
                 height: {xs: 440, md: 620},
                 position: 'relative',
@@ -518,7 +519,7 @@ export function ConvergenceTreeView({data, turnDeg}: Props) {
                     bottom: 0,
                     px: 1.2,
                     py: 0.75,
-                    bgcolor: 'rgba(8,10,24,0.72)',
+                    bgcolor: 'transparent',
                 }}
             >
                 <Typography variant='caption' color='text.secondary'>

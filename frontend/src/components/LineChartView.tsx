@@ -100,7 +100,7 @@ export function LineChartView({data}: Props) {
             sx={{
                 borderRadius: 1,
                 overflow: 'visible',
-                bgcolor: 'rgba(11, 14, 30, 0.6)',
+                bgcolor: 'transparent',
                 userSelect: 'none',
                 WebkitTapHighlightColor: 'transparent',
                 '& *:focus, & *:focus-visible': {

@@ -122,7 +122,7 @@ export function NetworkChartView({data}: Props) {
             sx={{
                 borderRadius: 1,
                 overflow: 'hidden',
-                bgcolor: 'rgba(8, 10, 24, 0.75)',
+                bgcolor: 'transparent',
                 position: 'relative',
                 userSelect: 'none',
                 WebkitTapHighlightColor: 'transparent',
