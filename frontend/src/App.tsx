@@ -274,6 +274,7 @@ function parsePositiveValue(value: string, fallback: number): number {
 
 export default function App() {
     const initialParams = useMemo(() => getInitialSearchParams(), []);
+    const hasInitialTurnParam = useMemo(() => initialParams.has('turn'), [initialParams]);
 
     const [xyLimitInput, setXyLimitInput] = useState(() =>
         getInitialNumericString(initialParams, 'xy_limit', '500'),
@@ -619,6 +620,18 @@ export default function App() {
         }, 500);
         return () => window.clearTimeout(timerId);
     }, [flowSamplesInput]);
+
+    useEffect(() => {
+        if (chartType !== 'tree3d') {
+            return;
+        }
+        if (hasInitialTurnParam) {
+            return;
+        }
+        if (treeTurnInput === '20') {
+            setTreeTurnInput('0');
+        }
+    }, [chartType, hasInitialTurnParam, treeTurnInput]);
 
     useEffect(() => {
         if (chartType !== 'path') {
