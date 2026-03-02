@@ -20,10 +20,10 @@ interface Props {
   setNetworkLimitInput: (value: string) => void;
   treeLayersInput: string;
   setTreeLayersInput: (value: string) => void;
-  treeEvenTurnInput: string;
-  setTreeEvenTurnInput: (value: string) => void;
-  treeOddTurnInput: string;
-  setTreeOddTurnInput: (value: string) => void;
+  treeTurnInput: string;
+  setTreeTurnInput: (value: string) => void;
+  pathStartInput: string;
+  setPathStartInput: (value: string) => void;
   chartType: ChartType;
   setChartType: (value: ChartType) => void;
   metric: Metric;
@@ -81,6 +81,8 @@ export function ControlPanel(props: Props) {
         >
           <MenuItem value='xy'>XY line</MenuItem>
           <MenuItem value='tree'>Convergence tree</MenuItem>
+          <MenuItem value='tree3d'>3D tree (coral)</MenuItem>
+          <MenuItem value='path'>Single number trace</MenuItem>
           <MenuItem value='network'>Transition network (hairball)</MenuItem>
         </Select>
       </FormControl>
@@ -102,6 +104,23 @@ export function ControlPanel(props: Props) {
         />
       ) : null}
 
+      {props.chartType === 'path' ? (
+        <TextField
+          label={
+            <FieldInfoLabel
+              label='Start n (Trace)'
+              description='Builds one Collatz trajectory for the selected start value until it reaches 1.'
+            />
+          }
+          type='text'
+          size='small'
+          slotProps={{ htmlInput: numericHtmlProps }}
+          value={props.pathStartInput}
+          onChange={(event) => props.setPathStartInput(event.target.value)}
+          sx={isSidebar ? undefined : { minWidth: { xs: '100%', md: 190 } }}
+        />
+      ) : null}
+
       {props.chartType === 'network' ? (
         <TextField
           label={
@@ -119,13 +138,17 @@ export function ControlPanel(props: Props) {
         />
       ) : null}
 
-      {props.chartType === 'tree' ? (
+      {props.chartType === 'tree' || props.chartType === 'tree3d' ? (
         <Stack direction={isSidebar ? 'column' : 'row'} spacing={1} sx={{ width: '100%' }}>
           <TextField
             label={
               <FieldInfoLabel
-                label='Layers (Tree)'
-                description='Depth of reverse Collatz tree starting from 1. Layer 1 contains 1, layer 2 contains 2, layer 3 contains 4, and so on.'
+                label={props.chartType === 'tree3d' ? 'Layers (3D tree)' : 'Layers (Tree)'}
+                description={
+                  props.chartType === 'tree3d'
+                    ? 'Depth of reverse Collatz tree used as source for 3D coral-like line rendering.'
+                    : 'Depth of reverse Collatz tree starting from 1. Layer 1 contains 1, layer 2 contains 2, layer 3 contains 4, and so on.'
+                }
               />
             }
             type='text'
@@ -138,29 +161,15 @@ export function ControlPanel(props: Props) {
           <TextField
             label={
               <FieldInfoLabel
-                label='Even turn deg'
-                description='Cumulative turn added on each even depth step. Positive and negative values are allowed.'
+                label='Turn deg'
+                description='Single cumulative turn per layer. Positive bends one side, negative bends opposite side, 0 keeps neutral orientation.'
               />
             }
             type='text'
             size='small'
             slotProps={{ htmlInput: signedNumericHtmlProps }}
-            value={props.treeEvenTurnInput}
-            onChange={(event) => props.setTreeEvenTurnInput(event.target.value)}
-            sx={isSidebar ? undefined : { minWidth: { xs: '100%', md: 160 } }}
-          />
-          <TextField
-            label={
-              <FieldInfoLabel
-                label='Odd turn deg'
-                description='Cumulative turn added on each odd depth step. Positive and negative values are allowed.'
-              />
-            }
-            type='text'
-            size='small'
-            slotProps={{ htmlInput: signedNumericHtmlProps }}
-            value={props.treeOddTurnInput}
-            onChange={(event) => props.setTreeOddTurnInput(event.target.value)}
+            value={props.treeTurnInput}
+            onChange={(event) => props.setTreeTurnInput(event.target.value)}
             sx={isSidebar ? undefined : { minWidth: { xs: '100%', md: 160 } }}
           />
         </Stack>

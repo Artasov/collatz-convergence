@@ -1,5 +1,5 @@
 export type Metric = 'steps' | 'max_value';
-export type ChartType = 'xy' | 'network' | 'tree';
+export type ChartType = 'xy' | 'network' | 'tree' | 'tree3d' | 'path';
 
 export interface Summary {
   limit: number;
