@@ -126,5 +126,20 @@ export const appTheme = createTheme({
                 },
             },
         },
+        MuiTooltip: {
+            styleOverrides: {
+                tooltip: {
+                    backgroundColor: 'rgba(14, 20, 36, 0.7)',
+                    backdropFilter: 'blur(10px)',
+                    WebkitBackdropFilter: 'blur(10px)',
+                    border: '1px solid rgba(182, 198, 232, 0.26)',
+                    color: '#e7efff',
+                    boxShadow: '0 10px 28px rgba(7, 10, 22, 0.45)',
+                },
+                arrow: {
+                    color: 'rgba(14, 20, 36, 0.82)',
+                },
+            },
+        },
     },
 });

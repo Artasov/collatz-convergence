@@ -1,12 +1,14 @@
 import type {PointerEvent} from 'react';
 import {useEffect, useMemo, useRef, useState} from 'react';
-import {Box, Typography} from '@mui/material';
+import {Box, Paper, Typography} from '@mui/material';
 import type {ConvergenceTreeData} from '../types';
+import {buildTreeGradient, toGradientColor} from './treeGradient';
 
 interface Props {
     data: ConvergenceTreeData;
     turnDeg: number;
     colorEnabled: boolean;
+    colorSeed: number;
 }
 
 interface Vec3 {
@@ -18,6 +20,7 @@ interface Vec3 {
 interface Node3D {
     id: string;
     value: number;
+    hits: number;
     depth: number;
     position: Vec3;
 }
@@ -64,6 +67,7 @@ interface HoverNodeState {
     localY: number;
     value: number;
     depth: number;
+    hits: number;
 }
 
 interface ProjectedNode {
@@ -73,22 +77,8 @@ interface ProjectedNode {
     radius: number;
     value: number;
     layer: number;
+    hits: number;
 }
-
-interface GradientColor {
-    stop: number;
-    r: number;
-    g: number;
-    b: number;
-}
-
-const TREE_GRADIENT: GradientColor[] = [
-    {stop: 0, r: 36, g: 40, b: 58},
-    {stop: 0.24, r: 98, g: 58, b: 136},
-    {stop: 0.48, r: 196, g: 92, b: 136},
-    {stop: 0.72, r: 238, g: 146, b: 118},
-    {stop: 1, r: 244, g: 198, b: 138},
-];
 
 function clamp(value: number, min: number, max: number): number {
     return Math.min(max, Math.max(min, value));
@@ -100,25 +90,6 @@ function toFinite(value: number, fallback: number): number {
 
 function toRad(value: number): number {
     return (value * Math.PI) / 180;
-}
-
-function toGradientColor(ratio: number, alpha: number): string {
-    const t = clamp(ratio, 0, 1);
-    for (let index = 1; index < TREE_GRADIENT.length; index += 1) {
-        const left = TREE_GRADIENT[index - 1];
-        const right = TREE_GRADIENT[index];
-        if (t > right.stop) {
-            continue;
-        }
-        const span = Math.max(0.0001, right.stop - left.stop);
-        const local = (t - left.stop) / span;
-        const r = Math.round(left.r + (right.r - left.r) * local);
-        const g = Math.round(left.g + (right.g - left.g) * local);
-        const b = Math.round(left.b + (right.b - left.b) * local);
-        return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-    }
-    const fallback = TREE_GRADIENT[TREE_GRADIENT.length - 1];
-    return `rgba(${fallback.r}, ${fallback.g}, ${fallback.b}, ${alpha})`;
 }
 
 function rotateY(point: Vec3, angle: number): Vec3 {
@@ -372,6 +343,7 @@ function buildGeometry(data: ConvergenceTreeData, turnDeg: number): Layout3D {
       return {
         id: node.id,
         value: toFinite(node.value, 0),
+          hits: Math.max(0, toFinite(node.hits, 0)),
         depth,
         position,
       };
@@ -469,7 +441,7 @@ function projectRaw(
     };
 }
 
-export function ConvergenceTree3DView({data, turnDeg, colorEnabled}: Props) {
+export function ConvergenceTree3DView({data, turnDeg, colorEnabled, colorSeed}: Props) {
     const containerRef = useRef<HTMLDivElement | null>(null);
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
     const projectedNodesRef = useRef<ProjectedNode[]>([]);
@@ -484,6 +456,7 @@ export function ConvergenceTree3DView({data, turnDeg, colorEnabled}: Props) {
     const [isWheeling, setIsWheeling] = useState(false);
 
     const geometry = useMemo(() => buildGeometry(data, turnDeg), [data, turnDeg]);
+    const gradient = useMemo(() => buildTreeGradient(colorSeed), [colorSeed]);
 
     const cameraDistance = useMemo(() => {
         const spanX = Math.max(1, geometry.bounds.maxX - geometry.bounds.minX);
@@ -668,7 +641,9 @@ export function ConvergenceTree3DView({data, turnDeg, colorEnabled}: Props) {
             const alpha = clamp(0.24 + layerRatio * 0.5, 0.18, 0.86);
             const zoomBoost = clamp(Math.pow(Math.max(zoom, 0.25), 0.3), 0.75, 2.2);
             const width = clamp((0.95 + layerRatio * 1.45) * perspective * zoomBoost, 0.7, 3.8);
-            context.strokeStyle = colorEnabled ? toGradientColor(layerRatio, alpha) : `rgba(196, 212, 245, ${alpha})`;
+            context.strokeStyle = colorEnabled
+                ? toGradientColor(gradient, layerRatio, alpha)
+                : `rgba(196, 212, 245, ${alpha})`;
             context.lineWidth = width;
             context.beginPath();
             context.moveTo(segment.sourceX, segment.sourceY);
@@ -692,6 +667,7 @@ export function ConvergenceTree3DView({data, turnDeg, colorEnabled}: Props) {
                     radius,
                     value: node.value,
                     layer: node.depth,
+                    hits: node.hits,
                 };
             })
             .filter((node): node is ProjectedNode => node !== null)
@@ -714,6 +690,7 @@ export function ConvergenceTree3DView({data, turnDeg, colorEnabled}: Props) {
         isWheeling,
         geometry.nodes,
         colorEnabled,
+        gradient,
     ]);
 
     function updateHover(clientX: number, clientY: number) {
@@ -746,6 +723,7 @@ export function ConvergenceTree3DView({data, turnDeg, colorEnabled}: Props) {
             localY: hit.y,
             value: hit.value,
             depth: hit.layer,
+            hits: hit.hits,
         });
     }
 
@@ -834,29 +812,35 @@ export function ConvergenceTree3DView({data, turnDeg, colorEnabled}: Props) {
                 }}
             />
             {hoverNode ? (
-                <Box
+                <Paper
+                    elevation={6}
                     sx={{
                         position: 'absolute',
-                        left: clamp(hoverNode.localX + 12, 8, containerSize.width - 196),
-                        top: clamp(hoverNode.localY + 12, 8, containerSize.height - 84),
-                        px: 1.15,
-                        py: 0.85,
+                        left: clamp(hoverNode.localX + 14, 8, containerSize.width - 208),
+                        top: clamp(hoverNode.localY + 14, 8, containerSize.height - 92),
+                        px: 1.2,
+                        py: 1,
                         border: '1px solid',
                         borderColor: 'divider',
-                        borderRadius: 1.2,
-                        bgcolor: 'rgba(12, 18, 34, 0.96)',
-                        boxShadow: '0 10px 26px rgba(5,8,20,0.58)',
                         pointerEvents: 'none',
-                        zIndex: 40,
+                        minWidth: 190,
+                        zIndex: 25,
+                        boxShadow: '0 12px 30px rgba(8,10,24,0.55)',
+                        bgcolor: 'rgba(14, 20, 36, 0.72)',
+                        backdropFilter: 'blur(12px)',
+                        WebkitBackdropFilter: 'blur(12px)',
                     }}
                 >
-                    <Typography variant='caption' sx={{display: 'block', fontWeight: 700}}>
-                        Value: {hoverNode.value}
+                    <Typography variant='body2' sx={{fontWeight: 700}}>
+                        Value {hoverNode.value}
                     </Typography>
                     <Typography variant='caption' color='text.secondary' sx={{display: 'block'}}>
-                        Layer: {hoverNode.depth}
+                        Steps to 1: {hoverNode.depth}
                     </Typography>
-                </Box>
+                    <Typography variant='caption' color='text.secondary' sx={{display: 'block'}}>
+                        Hits across starts: {hoverNode.hits}
+                    </Typography>
+                </Paper>
             ) : null}
             <Box
                 sx={{

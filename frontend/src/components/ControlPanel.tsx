@@ -1,7 +1,8 @@
 import {
     Box,
-    FormControlLabel,
+    Button,
     FormControl,
+    FormControlLabel,
     IconButton,
     InputLabel,
     MenuItem,
@@ -26,6 +27,7 @@ interface Props {
     setTreeTurnInput: (value: string) => void;
     treeColorEnabled: boolean;
     setTreeColorEnabled: (value: boolean) => void;
+    onRandomizeTreeColors: () => void;
     pathStartInput: string;
     setPathStartInput: (value: string) => void;
     chartType: ChartType;
@@ -40,6 +42,20 @@ interface FieldInfoLabelProps {
     description: string;
 }
 
+const infoIconSx = {
+    p: 0.2,
+    color: 'text.secondary',
+    borderRadius: 0.9,
+    bgcolor: 'rgba(255, 255, 255, 0.02)',
+    backdropFilter: 'blur(8px)',
+    WebkitBackdropFilter: 'blur(8px)',
+    transition: 'background-color 180ms ease, color 180ms ease',
+    '&:hover': {
+        bgcolor: 'rgba(255, 255, 255, 0.08)',
+        color: 'primary.light',
+    },
+};
+
 function FieldInfoLabel(props: FieldInfoLabelProps) {
     return (
         <Box sx={{display: 'inline-flex', alignItems: 'center', gap: 0.4}}>
@@ -49,7 +65,7 @@ function FieldInfoLabel(props: FieldInfoLabelProps) {
             <Tooltip title={props.description} arrow>
                 <IconButton
                     size='small'
-                    sx={{p: 0, color: 'text.secondary'}}
+                    sx={infoIconSx}
                     aria-label={`${props.label} info`}
                 >
                     <InfoOutlinedIcon sx={{fontSize: 16}}/>
@@ -90,7 +106,7 @@ export function ControlPanel(props: Props) {
                 <Tooltip title='Choose visual mode. Each mode has its own settings below.' arrow>
                     <IconButton
                         size='small'
-                        sx={{p: 0, color: 'text.secondary', alignSelf: 'center'}}
+                        sx={{...infoIconSx, alignSelf: 'center'}}
                         aria-label='Type info'
                     >
                         <InfoOutlinedIcon sx={{fontSize: 15}}/>
@@ -188,30 +204,60 @@ export function ControlPanel(props: Props) {
                         }}
                         sx={isSidebar ? undefined : {minWidth: {xs: '100%', md: 160}}}
                     />
-                    <FormControlLabel
+                    <Box
                         sx={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 0.9,
                             ml: isSidebar ? 0 : 0.5,
-                            mr: 0,
-                            my: 0.1,
-                            alignSelf: isSidebar ? 'flex-start' : 'center',
-                            '& .MuiFormControlLabel-label': {
-                                fontSize: 13,
-                                color: 'text.secondary',
-                                ml: 0.6,
-                            },
-                            '& .MuiSwitch-root': {
-                                py: 0.4,
-                            },
+                            mt: isSidebar ? 0 : 0.1,
                         }}
-                        control={(
-                            <Switch
-                                size='small'
-                                checked={props.treeColorEnabled}
-                                onChange={(event) => props.setTreeColorEnabled(event.target.checked)}
-                            />
-                        )}
-                        label='Color'
-                    />
+                    >
+                        <FormControlLabel
+                            sx={{
+                                m: 0,
+                                '& .MuiFormControlLabel-label': {
+                                    fontSize: 13,
+                                    color: 'text.secondary',
+                                    ml: 0.6,
+                                },
+                                '& .MuiSwitch-root': {
+                                    py: 0.4,
+                                },
+                            }}
+                            control={(
+                                <Switch
+                                    size='small'
+                                    checked={props.treeColorEnabled}
+                                    onChange={(event) => props.setTreeColorEnabled(event.target.checked)}
+                                />
+                            )}
+                            label='Color'
+                        />
+                        <Button
+                            size='small'
+                            variant='outlined'
+                            onClick={props.onRandomizeTreeColors}
+                            sx={{
+                                minWidth: 56,
+                                px: 0.85,
+                                py: 0.1,
+                                borderColor: 'rgba(164, 178, 208, 0.28)',
+                                color: 'text.secondary',
+                                bgcolor: 'rgba(255, 255, 255, 0.02)',
+                                fontSize: 11,
+                                fontWeight: 500,
+                                letterSpacing: '0.02em',
+                                textTransform: 'none',
+                                '&:hover': {
+                                    borderColor: 'rgba(164, 178, 208, 0.45)',
+                                    bgcolor: 'rgba(255, 255, 255, 0.06)',
+                                },
+                            }}
+                        >
+                            Random
+                        </Button>
+                    </Box>
                 </Stack>
             ) : null}
 
@@ -227,7 +273,7 @@ export function ControlPanel(props: Props) {
                         >
                             <IconButton
                                 size='small'
-                                sx={{p: 0, color: 'text.secondary'}}
+                                sx={infoIconSx}
                                 aria-label='Y metric info'
                             >
                                 <InfoOutlinedIcon sx={{fontSize: 15}}/>

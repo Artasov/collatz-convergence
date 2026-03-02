@@ -2,11 +2,13 @@ import type {PointerEvent} from 'react';
 import {useEffect, useMemo, useRef, useState} from 'react';
 import {Box, Paper, Typography, useTheme} from '@mui/material';
 import type {ConvergenceTreeData} from '../types';
+import {buildTreeGradient, toGradientColor} from './treeGradient';
 
 interface Props {
     data: ConvergenceTreeData;
     turnDeg: number;
     colorEnabled: boolean;
+    colorSeed: number;
 }
 
 interface NodePoint {
@@ -49,20 +51,12 @@ interface DragState {
     panY: number;
 }
 
-interface GradientColor {
-    stop: number;
-    r: number;
-    g: number;
-    b: number;
+interface TrimmedEdge {
+    x1: number;
+    y1: number;
+    x2: number;
+    y2: number;
 }
-
-const TREE_GRADIENT: GradientColor[] = [
-    {stop: 0, r: 36, g: 40, b: 58},
-    {stop: 0.24, r: 98, g: 58, b: 136},
-    {stop: 0.48, r: 196, g: 92, b: 136},
-    {stop: 0.72, r: 238, g: 146, b: 118},
-    {stop: 1, r: 244, g: 198, b: 138},
-];
 
 function clamp(value: number, min: number, max: number): number {
     return Math.min(max, Math.max(min, value));
@@ -76,23 +70,27 @@ function toRad(value: number): number {
     return (value * Math.PI) / 180;
 }
 
-function toGradientColor(ratio: number, alpha: number): string {
-    const t = clamp(ratio, 0, 1);
-    for (let index = 1; index < TREE_GRADIENT.length; index += 1) {
-        const left = TREE_GRADIENT[index - 1];
-        const right = TREE_GRADIENT[index];
-        if (t > right.stop) {
-            continue;
-        }
-        const span = Math.max(0.0001, right.stop - left.stop);
-        const local = (t - left.stop) / span;
-        const r = Math.round(left.r + (right.r - left.r) * local);
-        const g = Math.round(left.g + (right.g - left.g) * local);
-        const b = Math.round(left.b + (right.b - left.b) * local);
-        return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+function trimStraightEdge(
+    source: NodePoint,
+    target: NodePoint,
+    sourceTrim: number,
+    targetTrim: number,
+): TrimmedEdge | null {
+    const dx = target.x - source.x;
+    const dy = target.y - source.y;
+    const length = Math.hypot(dx, dy);
+    const trimSum = sourceTrim + targetTrim;
+    if (length <= trimSum + 0.001) {
+        return null;
     }
-    const fallback = TREE_GRADIENT[TREE_GRADIENT.length - 1];
-    return `rgba(${fallback.r}, ${fallback.g}, ${fallback.b}, ${alpha})`;
+    const ux = dx / length;
+    const uy = dy / length;
+    return {
+        x1: source.x + ux * sourceTrim,
+        y1: source.y + uy * sourceTrim,
+        x2: target.x - ux * targetTrim,
+        y2: target.y - uy * targetTrim,
+    };
 }
 
 function buildLayout(data: ConvergenceTreeData, turnDeg: number, containerHeight: number): Layout2D {
@@ -224,7 +222,7 @@ function buildLayout(data: ConvergenceTreeData, turnDeg: number, containerHeight
     };
 }
 
-export function ConvergenceTreeView({data, turnDeg, colorEnabled}: Props) {
+export function ConvergenceTreeView({data, turnDeg, colorEnabled, colorSeed}: Props) {
     const theme = useTheme();
     const containerRef = useRef<HTMLDivElement | null>(null);
     const zoomRef = useRef(1);
@@ -301,55 +299,76 @@ export function ConvergenceTreeView({data, turnDeg, colorEnabled}: Props) {
         [containerSize.height, data, turnDeg],
     );
     const safeMaxDepth = Math.max(1, toFinite(data.max_depth, 1));
-    const showLabels = zoom >= 0.28;
+    const gradient = useMemo(() => buildTreeGradient(colorSeed), [colorSeed]);
+    const showLabels = zoom * layout.nodeRadius >= 8.9;
 
     const edgeElements = useMemo(
         () => layout.edges.map((edge, index) => {
             const layerRatio = clamp(Math.max(edge.source.depth, edge.target.depth) / safeMaxDepth, 0, 1);
+            const baseTrim = layout.nodeRadius + 0.9;
             const lineColor = colorEnabled
-                ? toGradientColor(layerRatio, 0.82)
+                ? toGradientColor(gradient, layerRatio, 0.82)
                 : 'rgba(220,230,255,0.84)';
             const isCycle = edge.source.value === 1 && edge.target.value === 4;
             if (isCycle) {
-                const dx = edge.target.x - edge.source.x;
-                const dy = edge.target.y - edge.source.y;
+                const trimmed = trimStraightEdge(
+                    edge.source,
+                    edge.target,
+                    layout.nodeRadius + 1.1,
+                    layout.nodeRadius + 1.8,
+                );
+                if (!trimmed) {
+                    return null;
+                }
+                const dx = trimmed.x2 - trimmed.x1;
+                const dy = trimmed.y2 - trimmed.y1;
                 const length = Math.max(1, Math.hypot(dx, dy));
                 const nx = -dy / length;
                 const ny = dx / length;
-                const bend = Math.min(46, length * 0.72);
-                const controlX = (edge.source.x + edge.target.x) / 2 + nx * bend;
-                const controlY = (edge.source.y + edge.target.y) / 2 + ny * bend;
+                const bend = Math.min(52, length * 0.72 + layout.nodeRadius * 0.8);
+                const startShift = layout.nodeRadius * 0.34;
+                const endShift = layout.nodeRadius * 0.72;
+                const startX = trimmed.x1 + nx * startShift;
+                const startY = trimmed.y1 + ny * startShift;
+                const endX = trimmed.x2 + nx * endShift;
+                const endY = trimmed.y2 + ny * endShift;
+                const controlX = (startX + endX) / 2 + nx * bend;
+                const controlY = (startY + endY) / 2 + ny * bend;
                 return (
                     <path
                         key={`cycle-${edge.source.id}-${edge.target.id}-${index}`}
-                        d={`M ${edge.source.x} ${edge.source.y} Q ${controlX} ${controlY} ${edge.target.x} ${edge.target.y}`}
+                        d={`M ${startX} ${startY} Q ${controlX} ${controlY} ${endX} ${endY}`}
                         fill='none'
-                        stroke={colorEnabled ? toGradientColor(layerRatio, 0.9) : 'rgba(220,230,255,0.86)'}
+                        stroke={colorEnabled ? toGradientColor(gradient, layerRatio, 0.9) : 'rgba(220,230,255,0.86)'}
                         strokeWidth='1.35'
                         markerEnd='url(#cycle-arrow)'
                     />
                 );
             }
+            const trimmed = trimStraightEdge(edge.source, edge.target, baseTrim, baseTrim);
+            if (!trimmed) {
+                return null;
+            }
             return (
                 <line
                     key={`${edge.source.id}-${edge.target.id}-${index}`}
-                    x1={edge.source.x}
-                    y1={edge.source.y}
-                    x2={edge.target.x}
-                    y2={edge.target.y}
+                    x1={trimmed.x1}
+                    y1={trimmed.y1}
+                    x2={trimmed.x2}
+                    y2={trimmed.y2}
                     stroke={lineColor}
                     strokeWidth='1.1'
                 />
             );
         }),
-        [colorEnabled, layout.edges, safeMaxDepth],
+        [colorEnabled, gradient, layout.edges, layout.nodeRadius, safeMaxDepth],
     );
 
     const nodeElements = useMemo(
         () => layout.nodes.map((node) => {
             const layerRatio = clamp(node.depth / safeMaxDepth, 0, 1);
-            const nodeStroke = colorEnabled ? toGradientColor(layerRatio, 0.95) : 'rgba(171,183,208,0.82)';
-            const nodeFill = colorEnabled ? toGradientColor(layerRatio, 0.24) : '#2d3543';
+            const nodeStroke = colorEnabled ? toGradientColor(gradient, layerRatio, 0.96) : 'rgba(171,183,208,0.82)';
+            const nodeFill = colorEnabled ? toGradientColor(gradient, layerRatio, 0.9) : '#2d3543';
             return (
                 <g key={node.id}>
                     <circle
@@ -362,18 +381,33 @@ export function ConvergenceTreeView({data, turnDeg, colorEnabled}: Props) {
                     />
                     {showLabels ? (() => {
                         const digits = String(Math.abs(node.value)).length;
+                        const sizeFactor = digits >= 12
+                            ? 0.24
+                            : digits >= 10
+                                ? 0.29
+                                : digits >= 8
+                                    ? 0.35
+                                    : digits >= 6
+                                        ? 0.43
+                                        : digits >= 5
+                                            ? 0.5
+                                            : digits >= 4
+                                                ? 0.57
+                                                : 0.7;
                         const fontSize = clamp(
-                            layout.nodeRadius
-                            * (digits >= 10 ? 0.4 : digits >= 8 ? 0.46 : digits >= 6 ? 0.54 : digits >= 4 ? 0.62 : 0.72),
-                            2.8,
-                            8.5,
+                            layout.nodeRadius * sizeFactor,
+                            2.2,
+                            8.2,
                         );
+                        const textLength = digits >= 5 ? layout.nodeRadius * 1.62 : undefined;
                         return (
                             <text
                                 x={node.x}
                                 y={node.y + fontSize * 0.32}
                                 textAnchor='middle'
                                 fontSize={fontSize}
+                                textLength={textLength}
+                                lengthAdjust={textLength ? 'spacingAndGlyphs' : undefined}
                                 fill={theme.palette.text.primary}
                                 style={{pointerEvents: 'none'}}
                             >
@@ -384,7 +418,7 @@ export function ConvergenceTreeView({data, turnDeg, colorEnabled}: Props) {
                 </g>
             );
         }),
-        [colorEnabled, layout.nodeRadius, layout.nodes, safeMaxDepth, showLabels, theme.palette.text.primary],
+        [colorEnabled, gradient, layout.nodeRadius, layout.nodes, safeMaxDepth, showLabels, theme.palette.text.primary],
     );
 
     useEffect(() => {
@@ -517,8 +551,16 @@ export function ConvergenceTreeView({data, turnDeg, colorEnabled}: Props) {
         >
             <svg width={containerSize.width} height={containerSize.height}>
                 <defs>
-                    <marker id='cycle-arrow' markerWidth='7' markerHeight='7' refX='5' refY='3.5' orient='auto'>
-                        <path d='M 0 0 L 7 3.5 L 0 7 z' fill='rgba(220,230,255,0.9)'/>
+                    <marker
+                        id='cycle-arrow'
+                        markerWidth='8'
+                        markerHeight='8'
+                        refX='7.4'
+                        refY='4'
+                        markerUnits='userSpaceOnUse'
+                        orient='auto'
+                    >
+                        <path d='M 0 0 L 8 4 L 0 8 z' fill='context-stroke'/>
                     </marker>
                 </defs>
 
@@ -543,6 +585,9 @@ export function ConvergenceTreeView({data, turnDeg, colorEnabled}: Props) {
                         minWidth: 190,
                         zIndex: 25,
                         boxShadow: '0 12px 30px rgba(8,10,24,0.55)',
+                        bgcolor: 'rgba(14, 20, 36, 0.72)',
+                        backdropFilter: 'blur(12px)',
+                        WebkitBackdropFilter: 'blur(12px)',
                     }}
                 >
                     <Typography variant='body2' sx={{fontWeight: 700}}>

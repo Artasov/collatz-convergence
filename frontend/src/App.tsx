@@ -48,6 +48,7 @@ interface Insight {
 
 const TREE_WARNING_THRESHOLD = 32;
 const TREE_WARNING_SKIP_KEY = 'lothar_collatz_skip_tree_warning';
+const DEFAULT_TREE_COLOR_SEED = 137;
 
 function InsightCard(props: Insight) {
     return (
@@ -235,6 +236,18 @@ function getInitialColorEnabled(searchParams: URLSearchParams): boolean {
     return value === '1' || value === 'true';
 }
 
+function getInitialColorSeed(searchParams: URLSearchParams): number {
+    const raw = searchParams.get('color_seed');
+    if (!raw) {
+        return DEFAULT_TREE_COLOR_SEED;
+    }
+    const parsed = Number(raw);
+    if (!Number.isFinite(parsed)) {
+        return DEFAULT_TREE_COLOR_SEED;
+    }
+    return Math.max(0, Math.floor(parsed));
+}
+
 function parsePositiveValue(value: string, fallback: number): number {
     const parsed = Number(value);
     if (!Number.isFinite(parsed) || parsed < 1) {
@@ -262,6 +275,7 @@ export default function App() {
         getInitialNumericString(initialParams, 'start_n', '27'),
     );
     const [treeColorEnabled, setTreeColorEnabled] = useState(() => getInitialColorEnabled(initialParams));
+    const [treeColorSeed, setTreeColorSeed] = useState(() => getInitialColorSeed(initialParams));
     const [debouncedXyLimit, setDebouncedXyLimit] = useState(() =>
         parsePositiveValue(getInitialNumericString(initialParams, 'xy_limit', '500'), 500),
     );
@@ -633,25 +647,33 @@ export default function App() {
         setTreeWarningOpen(false);
     }
 
+    function onRandomizeTreeColors() {
+        const seed = Math.floor(Math.random() * 1000000000);
+        setTreeColorEnabled(true);
+        setTreeColorSeed(seed);
+    }
+
     useEffect(() => {
         const params = new URLSearchParams();
         params.set('chart', chartType);
         params.set('metric', metric);
         params.set('xy_limit', xyLimitInput || '500');
         params.set('network_limit', networkLimitInput || '500');
-    params.set('layers', treeLayersInput || '12');
-    params.set('turn', treeTurnInput || '0');
-    params.set('color', treeColorEnabled ? '1' : '0');
-    params.set('start_n', pathStartInput || '27');
+        params.set('layers', treeLayersInput || '12');
+        params.set('turn', treeTurnInput || '0');
+        params.set('color', treeColorEnabled ? '1' : '0');
+        params.set('color_seed', `${treeColorSeed}`);
+        params.set('start_n', pathStartInput || '27');
         const nextUrl = `${window.location.pathname}?${params.toString()}`;
         window.history.replaceState(null, '', nextUrl);
     }, [
         chartType,
         metric,
         networkLimitInput,
-    pathStartInput,
-    treeColorEnabled,
-    treeLayersInput,
+        pathStartInput,
+        treeColorEnabled,
+        treeColorSeed,
+        treeLayersInput,
         treeTurnInput,
         xyLimitInput,
     ]);
@@ -773,6 +795,7 @@ export default function App() {
                                     }
                                     treeColorEnabled={treeColorEnabled}
                                     setTreeColorEnabled={setTreeColorEnabled}
+                                    onRandomizeTreeColors={onRandomizeTreeColors}
                                     pathStartInput={pathStartInput}
                                     setPathStartInput={(value) =>
                                         onUnsignedNumericInputChange(value, setPathStartInput)
@@ -850,6 +873,7 @@ export default function App() {
                                         data={treeData}
                                         turnDeg={treeTurnDeg}
                                         colorEnabled={treeColorEnabled}
+                                        colorSeed={treeColorSeed}
                                     />
                                 ) : null}
                                 {!loading && chartType === 'tree3d' && treeData ? (
@@ -857,6 +881,7 @@ export default function App() {
                                         data={treeData}
                                         turnDeg={treeTurnDeg}
                                         colorEnabled={treeColorEnabled}
+                                        colorSeed={treeColorSeed}
                                     />
                                 ) : null}
                                 {chartType === 'path' && !pathLoading && pathData ? (
