@@ -191,7 +191,7 @@ function getInitialChartType(searchParams: URLSearchParams): ChartType {
     if (value === 'xy' || value === 'network' || value === 'tree' || value === 'tree3d' || value === 'flow3d' || value === 'path') {
         return value;
     }
-    return 'xy';
+    return 'flow3d';
 }
 
 function getInitialMetric(searchParams: URLSearchParams): Metric {
@@ -234,6 +234,9 @@ function getInitialSignedNumericString(
 
 function getInitialColorEnabled(searchParams: URLSearchParams): boolean {
     const value = searchParams.get('color');
+    if (value === null) {
+        return true;
+    }
     return value === '1' || value === 'true';
 }
 

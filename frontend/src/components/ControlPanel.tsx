@@ -17,6 +17,12 @@ import {
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import type {ChartType, Metric} from '../types';
 
+interface ChartTypeOption {
+    value: ChartType;
+    label: string;
+    description: string;
+}
+
 interface Props {
     xyLimitInput: string;
     setXyLimitInput: (value: string) => void;
@@ -61,6 +67,39 @@ const infoIconSx = {
     },
 };
 
+const CHART_TYPE_OPTIONS: ChartTypeOption[] = [
+    {
+        value: 'xy',
+        label: 'XY line',
+        description: 'Line chart for all starts 1..X: X axis is start n, Y axis is chosen metric (steps or peak value).',
+    },
+    {
+        value: 'tree',
+        label: 'Convergence tree',
+        description: '2D directed reverse Collatz tree grown from 1 by layers, with node values and connections.',
+    },
+    {
+        value: 'tree3d',
+        label: '3D tree',
+        description: '3D version of reverse Collatz tree where branches are rendered in volumetric space.',
+    },
+    {
+        value: 'flow3d',
+        label: '3D flow arcs',
+        description: 'Sampled 3D trajectories from random starts, styled by traversal frequency and parity bending.',
+    },
+    {
+        value: 'path',
+        label: 'Single number trace',
+        description: 'Detailed trajectory for one selected start number until it reaches 1.',
+    },
+    {
+        value: 'network',
+        label: 'Transition network',
+        description: 'Dense directed transition graph n -> f(n) built from all starts in range 1..X.',
+    },
+];
+
 function FieldInfoLabel(props: FieldInfoLabelProps) {
     return (
         <Box sx={{display: 'inline-flex', alignItems: 'center', gap: 0.4}}>
@@ -98,15 +137,36 @@ export function ControlPanel(props: Props) {
                         labelId='chart-type-label'
                         value={props.chartType}
                         label='Type'
+                        renderValue={(selected) =>
+                            CHART_TYPE_OPTIONS.find((option) => option.value === selected)?.label ?? 'Type'
+                        }
                         onChange={(event) => props.setChartType(event.target.value as ChartType)}
                         inputProps={{'aria-label': 'Type'}}
                     >
-                        <MenuItem value='xy'>XY line</MenuItem>
-                        <MenuItem value='tree'>Convergence tree</MenuItem>
-                        <MenuItem value='tree3d'>3D tree</MenuItem>
-                        <MenuItem value='flow3d'>3D flow arcs</MenuItem>
-                        <MenuItem value='path'>Single number trace</MenuItem>
-                        <MenuItem value='network'>Transition network</MenuItem>
+                        {CHART_TYPE_OPTIONS.map((option) => (
+                            <MenuItem key={option.value} value={option.value}>
+                                <Box sx={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                    width: '100%'
+                                }}>
+                                    <Typography variant='body2'>{option.label}</Typography>
+                                    <Tooltip title={option.description} arrow>
+                                        <IconButton
+                                            size='small'
+                                            sx={infoIconSx}
+                                            aria-label={`${option.label} info`}
+                                            tabIndex={-1}
+                                            onMouseDown={(event) => event.stopPropagation()}
+                                            onClick={(event) => event.stopPropagation()}
+                                        >
+                                            <InfoOutlinedIcon sx={{fontSize: 14}}/>
+                                        </IconButton>
+                                    </Tooltip>
+                                </Box>
+                            </MenuItem>
+                        ))}
                     </Select>
                 </FormControl>
                 <Tooltip title='Choose visual mode. Each mode has its own settings below.' arrow>
