@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 from ..core.settings import AppSettings, AppSettingsFactory
-from ..services.lothar_collatz_service import LotharCollatzService
 from ..domain.lothar_collatz import LotharCollatzGenerator
 from ..infrastructure.db.session import SqlAlchemySessionFactory
 from ..infrastructure.repositories.postgres_lothar_collatz_repository import (
     PostgresLotharCollatzRepository,
 )
+from ..services.lothar_collatz_service import LotharCollatzService
 
 
 class ApiContainer:

@@ -14,4 +14,3 @@ class LotharCollatzRepository(ABC):
     @abstractmethod
     def load_by_limit(self, limit: int) -> Optional[LotharCollatzGeneration]:
         raise NotImplementedError
-

@@ -2,13 +2,6 @@ from __future__ import annotations
 
 from collections import Counter
 
-from ..dto.lothar_collatz import (
-    ChartResponseDto,
-    GenerateResponseDto,
-    LotharCollatzSummaryDto,
-    PathPointDto,
-    PathResponseDto,
-)
 from ..domain.charts import (
     LotharCollatzNetworkChartBuilder,
     LotharCollatzTreeChartBuilder,
@@ -16,6 +9,13 @@ from ..domain.charts import (
 )
 from ..domain.lothar_collatz import LotharCollatzGeneration, LotharCollatzGenerator
 from ..domain.repositories import LotharCollatzRepository
+from ..dto.lothar_collatz import (
+    ChartResponseDto,
+    GenerateResponseDto,
+    LotharCollatzSummaryDto,
+    PathPointDto,
+    PathResponseDto,
+)
 
 
 class LotharCollatzCacheNotFoundError(Exception):
@@ -28,9 +28,9 @@ class LotharCollatzChartTypeError(Exception):
 
 class LotharCollatzService:
     def __init__(
-        self,
-        generator: LotharCollatzGenerator,
-        repository: LotharCollatzRepository,
+            self,
+            generator: LotharCollatzGenerator,
+            repository: LotharCollatzRepository,
     ) -> None:
         self.generator = generator
         self.repository = repository
@@ -63,12 +63,12 @@ class LotharCollatzService:
         )
 
     def build_chart(
-        self,
-        chart_type: str,
-        limit: int | None,
-        source: str,
-        metric: str,
-        layers: int | None = None,
+            self,
+            chart_type: str,
+            limit: int | None,
+            source: str,
+            metric: str,
+            layers: int | None = None,
     ) -> ChartResponseDto:
         if chart_type == 'tree':
             safe_layers = 12 if layers is None else layers

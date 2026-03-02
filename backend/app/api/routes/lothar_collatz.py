@@ -4,6 +4,7 @@ from typing import Literal
 
 from fastapi import APIRouter, HTTPException, Query
 
+from ..container import ApiContainer
 from ...dto.lothar_collatz import (
     ChartResponseDto,
     GenerateResponseDto,
@@ -14,7 +15,6 @@ from ...services.lothar_collatz_service import (
     LotharCollatzCacheNotFoundError,
     LotharCollatzChartTypeError,
 )
-from ..container import ApiContainer
 
 router = APIRouter(prefix='/api', tags=['lothar-collatz'])
 
@@ -26,8 +26,8 @@ def health() -> HealthResponseDto:
 
 @router.post('/generate', response_model=GenerateResponseDto)
 def generate(
-    limit: int = Query(..., gt=0, le=1_000_000),
-    persist: bool = Query(True),
+        limit: int = Query(..., gt=0, le=100_000_000),
+        persist: bool = Query(True),
 ) -> GenerateResponseDto:
     service = ApiContainer.lothar_collatz_service()
     return service.generate(limit=limit, persist=persist)
@@ -35,11 +35,11 @@ def generate(
 
 @router.get('/charts/{chart_type}', response_model=ChartResponseDto)
 def chart(
-    chart_type: Literal['xy', 'network', 'tree'],
-    limit: int | None = Query(None, gt=0, le=1_000_000),
-    layers: int | None = Query(None, gt=0, le=512),
-    source: Literal['auto', 'fresh', 'cache'] = Query('auto'),
-    metric: Literal['steps', 'max_value'] = Query('steps'),
+        chart_type: Literal['xy', 'network', 'tree'],
+        limit: int | None = Query(None, gt=0, le=100_000_000),
+        layers: int | None = Query(None, gt=0, le=512),
+        source: Literal['auto', 'fresh', 'cache'] = Query('auto'),
+        metric: Literal['steps', 'max_value'] = Query('steps'),
 ) -> ChartResponseDto:
     service = ApiContainer.lothar_collatz_service()
     try:
@@ -60,7 +60,7 @@ def chart(
 
 @router.get('/path', response_model=PathResponseDto)
 def path(
-    start_n: int = Query(..., gt=0, le=10_000_000),
+        start_n: int = Query(..., gt=0, le=10_000_000),
 ) -> PathResponseDto:
     service = ApiContainer.lothar_collatz_service()
     try:

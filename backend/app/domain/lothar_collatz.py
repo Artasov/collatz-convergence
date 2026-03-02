@@ -136,4 +136,3 @@ class LotharCollatzGenerator:
         while value != 1:
             value = LotharCollatzGenerator.next_value(value)
             yield value
-

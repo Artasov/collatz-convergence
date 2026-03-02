@@ -5,18 +5,18 @@ from typing import Dict, Optional, Tuple
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
-from ...domain.lothar_collatz import (
-    LotharCollatzGeneration,
-    LotharCollatzSequence,
-    LotharCollatzSummary,
-)
-from ...domain.repositories import LotharCollatzRepository
 from ..db.models import (
     LotharCollatzEdgeModel,
     LotharCollatzGenerationModel,
     LotharCollatzSequenceModel,
 )
 from ..db.session import SqlAlchemySessionFactory
+from ...domain.lothar_collatz import (
+    LotharCollatzGeneration,
+    LotharCollatzSequence,
+    LotharCollatzSummary,
+)
+from ...domain.repositories import LotharCollatzRepository
 
 
 class PostgresLotharCollatzRepository(LotharCollatzRepository):
