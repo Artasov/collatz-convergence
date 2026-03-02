@@ -241,7 +241,7 @@ export function ConvergenceTreeView({ data, turnDeg }: Props) {
       const zoomFactor = event.deltaY < 0 ? 1.13 : 0.89;
       const currentZoom = zoomRef.current;
       const currentPan = panRef.current;
-      const nextZoom = clamp(currentZoom * zoomFactor, 0.16, 7.2);
+      const nextZoom = clamp(currentZoom * zoomFactor, 0.03, 7.2);
 
       const worldX = (cursorX - currentPan.x) / currentZoom;
       const worldY = (cursorY - currentPan.y) / currentZoom;
@@ -270,7 +270,7 @@ export function ConvergenceTreeView({ data, turnDeg }: Props) {
     const spanY = Math.max(1, layout.bounds.maxY - layout.bounds.minY);
     const fitZoom = clamp(
       Math.min((containerSize.width * 0.9) / spanX, (containerSize.height * 0.8) / spanY),
-      0.2,
+      0.03,
       2.5,
     );
     const nextPan = {
