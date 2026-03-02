@@ -194,6 +194,7 @@ export function ConvergenceTreeView({ data, turnDeg }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const zoomRef = useRef(1);
   const panRef = useRef({ x: 0, y: 0 });
+  const hoverNodeIdRef = useRef<string | null>(null);
 
   const [containerSize, setContainerSize] = useState({ width: 1100, height: 620 });
   const [zoom, setZoom] = useState(1);
@@ -241,7 +242,7 @@ export function ConvergenceTreeView({ data, turnDeg }: Props) {
       const zoomFactor = event.deltaY < 0 ? 1.13 : 0.89;
       const currentZoom = zoomRef.current;
       const currentPan = panRef.current;
-      const nextZoom = clamp(currentZoom * zoomFactor, 0.03, 7.2);
+      const nextZoom = clamp(currentZoom * zoomFactor, 0.00005, 7.2);
 
       const worldX = (cursorX - currentPan.x) / currentZoom;
       const worldY = (cursorY - currentPan.y) / currentZoom;
@@ -264,13 +265,88 @@ export function ConvergenceTreeView({ data, turnDeg }: Props) {
     () => buildLayout(data, turnDeg, containerSize.height),
     [containerSize.height, data, turnDeg],
   );
+  const showLabels = zoom >= 0.55 && layout.nodes.length <= 2600;
+
+  const edgeElements = useMemo(
+    () => layout.edges.map((edge, index) => {
+      const isCycle = edge.source.value === 1 && edge.target.value === 4;
+      if (isCycle) {
+        const dx = edge.target.x - edge.source.x;
+        const dy = edge.target.y - edge.source.y;
+        const length = Math.max(1, Math.hypot(dx, dy));
+        const nx = -dy / length;
+        const ny = dx / length;
+        const bend = Math.min(46, length * 0.72);
+        const controlX = (edge.source.x + edge.target.x) / 2 + nx * bend;
+        const controlY = (edge.source.y + edge.target.y) / 2 + ny * bend;
+        return (
+          <path
+            key={`cycle-${edge.source.id}-${edge.target.id}-${index}`}
+            d={`M ${edge.source.x} ${edge.source.y} Q ${controlX} ${controlY} ${edge.target.x} ${edge.target.y}`}
+            fill='none'
+            stroke='rgba(220,230,255,0.86)'
+            strokeWidth='1.35'
+            markerEnd='url(#cycle-arrow)'
+          />
+        );
+      }
+      return (
+        <line
+          key={`${edge.source.id}-${edge.target.id}-${index}`}
+          x1={edge.source.x}
+          y1={edge.source.y}
+          x2={edge.target.x}
+          y2={edge.target.y}
+          stroke='rgba(220,230,255,0.84)'
+          strokeWidth='1.1'
+        />
+      );
+    }),
+    [layout.edges],
+  );
+
+  const nodeElements = useMemo(
+    () => layout.nodes.map((node) => {
+      const digits = String(Math.abs(node.value)).length;
+      const fontSize = clamp(
+        layout.nodeRadius * (digits >= 6 ? 0.54 : digits >= 4 ? 0.62 : 0.72),
+        4.5,
+        8.5,
+      );
+      return (
+        <g key={node.id}>
+          <circle
+            cx={node.x}
+            cy={node.y}
+            r={layout.nodeRadius}
+            fill='#2d3543'
+            stroke='rgba(171,183,208,0.82)'
+            strokeWidth='0.9'
+          />
+          {showLabels ? (
+            <text
+              x={node.x}
+              y={node.y + fontSize * 0.32}
+              textAnchor='middle'
+              fontSize={fontSize}
+              fill={theme.palette.text.primary}
+              style={{ pointerEvents: 'none' }}
+            >
+              {node.value}
+            </text>
+          ) : null}
+        </g>
+      );
+    }),
+    [layout.nodeRadius, layout.nodes, showLabels, theme.palette.text.primary],
+  );
 
   useEffect(() => {
     const spanX = Math.max(1, layout.bounds.maxX - layout.bounds.minX);
     const spanY = Math.max(1, layout.bounds.maxY - layout.bounds.minY);
     const fitZoom = clamp(
       Math.min((containerSize.width * 0.9) / spanX, (containerSize.height * 0.8) / spanY),
-      0.03,
+      0.00005,
       2.5,
     );
     const nextPan = {
@@ -301,11 +377,54 @@ export function ConvergenceTreeView({ data, turnDeg }: Props) {
       panX: pan.x,
       panY: pan.y,
     });
+    hoverNodeIdRef.current = null;
     setHover(null);
   }
 
   function onPointerMove(event: PointerEvent<HTMLDivElement>) {
     if (!drag) {
+      const currentZoom = zoomRef.current;
+      const currentPan = panRef.current;
+      const rect = event.currentTarget.getBoundingClientRect();
+      const localX = event.clientX - rect.left;
+      const localY = event.clientY - rect.top;
+      const worldX = (localX - currentPan.x) / currentZoom;
+      const worldY = (localY - currentPan.y) / currentZoom;
+      const hitRadius = layout.nodeRadius * 1.35;
+      const hitRadiusSq = hitRadius * hitRadius;
+
+      let hoveredNode: NodePoint | null = null;
+      let bestDistSq = Number.POSITIVE_INFINITY;
+      for (const node of layout.nodes) {
+        const dx = worldX - node.x;
+        const dy = worldY - node.y;
+        const distSq = dx * dx + dy * dy;
+        if (distSq > hitRadiusSq || distSq >= bestDistSq) {
+          continue;
+        }
+        hoveredNode = node;
+        bestDistSq = distSq;
+      }
+
+      if (!hoveredNode) {
+        if (hoverNodeIdRef.current !== null) {
+          hoverNodeIdRef.current = null;
+          setHover(null);
+        }
+        return;
+      }
+      if (
+        hoverNodeIdRef.current === hoveredNode.id
+      ) {
+        return;
+      }
+      hoverNodeIdRef.current = hoveredNode.id;
+      setHover({
+        x: event.clientX,
+        y: event.clientY,
+        title: `Value ${hoveredNode.value}`,
+        lines: [`Steps to 1: ${hoveredNode.depth}`, `Hits across starts: ${hoveredNode.hits}`],
+      });
       return;
     }
     const offsetX = event.clientX - drag.pointerX;
@@ -332,6 +451,7 @@ export function ConvergenceTreeView({ data, turnDeg }: Props) {
       onPointerCancel={onPointerUp}
       onPointerLeave={() => {
         setDrag(null);
+        hoverNodeIdRef.current = null;
         setHover(null);
       }}
       sx={{
@@ -360,85 +480,8 @@ export function ConvergenceTreeView({ data, turnDeg }: Props) {
         </defs>
 
         <g transform={`translate(${pan.x} ${pan.y}) scale(${zoom})`}>
-          {layout.edges.map((edge, index) => {
-            const isCycle = edge.source.value === 1 && edge.target.value === 4;
-            if (isCycle) {
-              const dx = edge.target.x - edge.source.x;
-              const dy = edge.target.y - edge.source.y;
-              const length = Math.max(1, Math.hypot(dx, dy));
-              const nx = -dy / length;
-              const ny = dx / length;
-              const bend = Math.min(46, length * 0.72);
-              const controlX = (edge.source.x + edge.target.x) / 2 + nx * bend;
-              const controlY = (edge.source.y + edge.target.y) / 2 + ny * bend;
-              return (
-                <path
-                  key={`cycle-${edge.source.id}-${edge.target.id}-${index}`}
-                  d={`M ${edge.source.x} ${edge.source.y} Q ${controlX} ${controlY} ${edge.target.x} ${edge.target.y}`}
-                  fill='none'
-                  stroke='rgba(220,230,255,0.86)'
-                  strokeWidth='1.35'
-                  markerEnd='url(#cycle-arrow)'
-                />
-              );
-            }
-            return (
-              <line
-                key={`${edge.source.id}-${edge.target.id}-${index}`}
-                x1={edge.source.x}
-                y1={edge.source.y}
-                x2={edge.target.x}
-                y2={edge.target.y}
-                stroke='rgba(220,230,255,0.84)'
-                strokeWidth='1.1'
-              />
-            );
-          })}
-
-          {layout.nodes.map((node) => {
-            const digits = String(Math.abs(node.value)).length;
-            const fontSize = clamp(
-              layout.nodeRadius * (digits >= 6 ? 0.54 : digits >= 4 ? 0.62 : 0.72),
-              4.5,
-              8.5,
-            );
-            return (
-              <g
-                key={node.id}
-                onMouseMove={(event) => {
-                  if (drag) {
-                    return;
-                  }
-                  setHover({
-                    x: event.clientX,
-                    y: event.clientY,
-                    title: `Value ${node.value}`,
-                    lines: [`Steps to 1: ${node.depth}`, `Hits across starts: ${node.hits}`],
-                  });
-                }}
-                onMouseLeave={() => setHover(null)}
-              >
-                <circle
-                  cx={node.x}
-                  cy={node.y}
-                  r={layout.nodeRadius}
-                  fill='#2d3543'
-                  stroke='rgba(171,183,208,0.82)'
-                  strokeWidth='0.9'
-                />
-                <text
-                  x={node.x}
-                  y={node.y + fontSize * 0.32}
-                  textAnchor='middle'
-                  fontSize={fontSize}
-                  fill={theme.palette.text.primary}
-                  style={{ pointerEvents: 'none' }}
-                >
-                  {node.value}
-                </text>
-              </g>
-            );
-          })}
+          {edgeElements}
+          {nodeElements}
         </g>
       </svg>
 

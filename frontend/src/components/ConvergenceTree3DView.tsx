@@ -403,6 +403,7 @@ export function ConvergenceTree3DView({ data, turnDeg }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const projectedNodesRef = useRef<ProjectedNode[]>([]);
+  const wheelTimerRef = useRef<number | null>(null);
 
   const [containerSize, setContainerSize] = useState({ width: 980, height: 620 });
   const [zoom, setZoom] = useState(1);
@@ -410,6 +411,7 @@ export function ConvergenceTree3DView({ data, turnDeg }: Props) {
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [drag, setDrag] = useState<DragState | null>(null);
   const [hoverNode, setHoverNode] = useState<HoverNodeState | null>(null);
+  const [isWheeling, setIsWheeling] = useState(false);
 
   const geometry = useMemo(() => buildGeometry(data, turnDeg), [data, turnDeg]);
 
@@ -453,12 +455,26 @@ export function ConvergenceTree3DView({ data, turnDeg }: Props) {
         event.preventDefault();
       }
       event.stopPropagation();
+      setIsWheeling(true);
+      if (wheelTimerRef.current !== null) {
+        window.clearTimeout(wheelTimerRef.current);
+      }
+      wheelTimerRef.current = window.setTimeout(() => {
+        setIsWheeling(false);
+        wheelTimerRef.current = null;
+      }, 130);
       const factor = event.deltaY < 0 ? 1.14 : 0.88;
-      setZoom((current) => clamp(current * factor, 0.04, 120));
+      setZoom((current) => clamp(current * factor, 0.00008, 120));
     }
 
     container.addEventListener('wheel', onWheel, { passive: false });
-    return () => container.removeEventListener('wheel', onWheel);
+    return () => {
+      container.removeEventListener('wheel', onWheel);
+      if (wheelTimerRef.current !== null) {
+        window.clearTimeout(wheelTimerRef.current);
+        wheelTimerRef.current = null;
+      }
+    };
   }, []);
 
   useEffect(() => {
@@ -497,7 +513,7 @@ export function ConvergenceTree3DView({ data, turnDeg }: Props) {
     const spanY = Math.max(1, maxY - minY);
     const fitZoom = clamp(
       Math.min((containerSize.width * 0.84) / spanX, (containerSize.height * 0.84) / spanY),
-      0.08,
+      0.0001,
       24,
     );
     const rootProjected = projectRaw(
@@ -556,6 +572,7 @@ export function ConvergenceTree3DView({ data, turnDeg }: Props) {
         depth: raw.depth,
       };
     }
+    const fastMode = drag !== null || isWheeling || geometry.segments.length > 9000;
 
     const projectedSegments = geometry.segments
       .map((segment) => {
@@ -573,8 +590,10 @@ export function ConvergenceTree3DView({ data, turnDeg }: Props) {
           layer: segment.depth,
         };
       })
-      .filter((segment): segment is NonNullable<typeof segment> => segment !== null)
-      .sort((left, right) => right.depth - left.depth);
+      .filter((segment): segment is NonNullable<typeof segment> => segment !== null);
+    if (!fastMode) {
+      projectedSegments.sort((left, right) => right.depth - left.depth);
+    }
 
     for (const segment of projectedSegments) {
       const layerRatio = 1 - clamp(segment.layer / geometry.maxDepth, 0, 1);
@@ -582,6 +601,15 @@ export function ConvergenceTree3DView({ data, turnDeg }: Props) {
       const alpha = clamp(0.28 + layerRatio * 0.55, 0.2, 0.9);
       const zoomBoost = clamp(Math.pow(Math.max(zoom, 0.25), 0.38), 0.75, 3.2);
       const width = clamp((1 + layerRatio * 1.78) * perspective * zoomBoost, 1, 9.2);
+      if (fastMode) {
+        context.strokeStyle = `rgba(188, 204, 238, ${clamp(alpha * 0.88, 0.18, 0.82)})`;
+        context.lineWidth = clamp(width * 0.9, 0.8, 4.2);
+        context.beginPath();
+        context.moveTo(segment.sourceX, segment.sourceY);
+        context.lineTo(segment.targetX, segment.targetY);
+        context.stroke();
+        continue;
+      }
       const dx = segment.targetX - segment.sourceX;
       const dy = segment.targetY - segment.sourceY;
       const length = Math.hypot(dx, dy);
@@ -625,6 +653,11 @@ export function ConvergenceTree3DView({ data, turnDeg }: Props) {
       context.moveTo(segment.sourceX + nx * 1.7, segment.sourceY + ny * 1.7);
       context.lineTo(segment.targetX + nx * 1.7, segment.targetY + ny * 1.7);
       context.stroke();
+    }
+
+    if (fastMode) {
+      projectedNodesRef.current = [];
+      return;
     }
 
     const projectedNodes = geometry.nodes
@@ -694,6 +727,9 @@ export function ConvergenceTree3DView({ data, turnDeg }: Props) {
     rotation.x,
     rotation.y,
     zoom,
+    drag,
+    isWheeling,
+    geometry.nodes,
   ]);
 
   function updateHover(clientX: number, clientY: number) {
@@ -748,6 +784,10 @@ export function ConvergenceTree3DView({ data, turnDeg }: Props) {
 
   function onPointerMove(event: PointerEvent<HTMLDivElement>) {
     if (!drag) {
+      if (isWheeling) {
+        setHoverNode(null);
+        return;
+      }
       updateHover(event.clientX, event.clientY);
       return;
     }
