@@ -6,6 +6,7 @@ import type {ConvergenceTreeData} from '../types';
 interface Props {
     data: ConvergenceTreeData;
     turnDeg: number;
+    colorEnabled: boolean;
 }
 
 interface Vec3 {
@@ -74,6 +75,21 @@ interface ProjectedNode {
     layer: number;
 }
 
+interface GradientColor {
+    stop: number;
+    r: number;
+    g: number;
+    b: number;
+}
+
+const TREE_GRADIENT: GradientColor[] = [
+    {stop: 0, r: 36, g: 40, b: 58},
+    {stop: 0.24, r: 98, g: 58, b: 136},
+    {stop: 0.48, r: 196, g: 92, b: 136},
+    {stop: 0.72, r: 238, g: 146, b: 118},
+    {stop: 1, r: 244, g: 198, b: 138},
+];
+
 function clamp(value: number, min: number, max: number): number {
     return Math.min(max, Math.max(min, value));
 }
@@ -84,6 +100,25 @@ function toFinite(value: number, fallback: number): number {
 
 function toRad(value: number): number {
     return (value * Math.PI) / 180;
+}
+
+function toGradientColor(ratio: number, alpha: number): string {
+    const t = clamp(ratio, 0, 1);
+    for (let index = 1; index < TREE_GRADIENT.length; index += 1) {
+        const left = TREE_GRADIENT[index - 1];
+        const right = TREE_GRADIENT[index];
+        if (t > right.stop) {
+            continue;
+        }
+        const span = Math.max(0.0001, right.stop - left.stop);
+        const local = (t - left.stop) / span;
+        const r = Math.round(left.r + (right.r - left.r) * local);
+        const g = Math.round(left.g + (right.g - left.g) * local);
+        const b = Math.round(left.b + (right.b - left.b) * local);
+        return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+    }
+    const fallback = TREE_GRADIENT[TREE_GRADIENT.length - 1];
+    return `rgba(${fallback.r}, ${fallback.g}, ${fallback.b}, ${alpha})`;
 }
 
 function rotateY(point: Vec3, angle: number): Vec3 {
@@ -434,7 +469,7 @@ function projectRaw(
     };
 }
 
-export function ConvergenceTree3DView({data, turnDeg}: Props) {
+export function ConvergenceTree3DView({data, turnDeg, colorEnabled}: Props) {
     const containerRef = useRef<HTMLDivElement | null>(null);
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
     const projectedNodesRef = useRef<ProjectedNode[]>([]);
@@ -633,7 +668,7 @@ export function ConvergenceTree3DView({data, turnDeg}: Props) {
             const alpha = clamp(0.24 + layerRatio * 0.5, 0.18, 0.86);
             const zoomBoost = clamp(Math.pow(Math.max(zoom, 0.25), 0.3), 0.75, 2.2);
             const width = clamp((0.95 + layerRatio * 1.45) * perspective * zoomBoost, 0.7, 3.8);
-            context.strokeStyle = `rgba(196, 212, 245, ${alpha})`;
+            context.strokeStyle = colorEnabled ? toGradientColor(layerRatio, alpha) : `rgba(196, 212, 245, ${alpha})`;
             context.lineWidth = width;
             context.beginPath();
             context.moveTo(segment.sourceX, segment.sourceY);
@@ -678,6 +713,7 @@ export function ConvergenceTree3DView({data, turnDeg}: Props) {
         drag,
         isWheeling,
         geometry.nodes,
+        colorEnabled,
     ]);
 
     function updateHover(clientX: number, clientY: number) {

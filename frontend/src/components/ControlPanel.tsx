@@ -1,11 +1,13 @@
 import {
     Box,
+    FormControlLabel,
     FormControl,
     IconButton,
     InputLabel,
     MenuItem,
     Select,
     Stack,
+    Switch,
     TextField,
     Tooltip,
     Typography,
@@ -22,6 +24,8 @@ interface Props {
     setTreeLayersInput: (value: string) => void;
     treeTurnInput: string;
     setTreeTurnInput: (value: string) => void;
+    treeColorEnabled: boolean;
+    setTreeColorEnabled: (value: boolean) => void;
     pathStartInput: string;
     setPathStartInput: (value: string) => void;
     chartType: ChartType;
@@ -183,6 +187,30 @@ export function ControlPanel(props: Props) {
                             }
                         }}
                         sx={isSidebar ? undefined : {minWidth: {xs: '100%', md: 160}}}
+                    />
+                    <FormControlLabel
+                        sx={{
+                            ml: isSidebar ? 0 : 0.5,
+                            mr: 0,
+                            my: 0.1,
+                            alignSelf: isSidebar ? 'flex-start' : 'center',
+                            '& .MuiFormControlLabel-label': {
+                                fontSize: 13,
+                                color: 'text.secondary',
+                                ml: 0.6,
+                            },
+                            '& .MuiSwitch-root': {
+                                py: 0.4,
+                            },
+                        }}
+                        control={(
+                            <Switch
+                                size='small'
+                                checked={props.treeColorEnabled}
+                                onChange={(event) => props.setTreeColorEnabled(event.target.checked)}
+                            />
+                        )}
+                        label='Color'
                     />
                 </Stack>
             ) : null}

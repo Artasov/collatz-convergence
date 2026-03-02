@@ -230,6 +230,11 @@ function getInitialSignedNumericString(
     return normalized && normalized !== '-' ? normalized : fallback;
 }
 
+function getInitialColorEnabled(searchParams: URLSearchParams): boolean {
+    const value = searchParams.get('color');
+    return value === '1' || value === 'true';
+}
+
 function parsePositiveValue(value: string, fallback: number): number {
     const parsed = Number(value);
     if (!Number.isFinite(parsed) || parsed < 1) {
@@ -256,6 +261,7 @@ export default function App() {
     const [pathStartInput, setPathStartInput] = useState(() =>
         getInitialNumericString(initialParams, 'start_n', '27'),
     );
+    const [treeColorEnabled, setTreeColorEnabled] = useState(() => getInitialColorEnabled(initialParams));
     const [debouncedXyLimit, setDebouncedXyLimit] = useState(() =>
         parsePositiveValue(getInitialNumericString(initialParams, 'xy_limit', '500'), 500),
     );
@@ -633,17 +639,19 @@ export default function App() {
         params.set('metric', metric);
         params.set('xy_limit', xyLimitInput || '500');
         params.set('network_limit', networkLimitInput || '500');
-        params.set('layers', treeLayersInput || '12');
-        params.set('turn', treeTurnInput || '0');
-        params.set('start_n', pathStartInput || '27');
+    params.set('layers', treeLayersInput || '12');
+    params.set('turn', treeTurnInput || '0');
+    params.set('color', treeColorEnabled ? '1' : '0');
+    params.set('start_n', pathStartInput || '27');
         const nextUrl = `${window.location.pathname}?${params.toString()}`;
         window.history.replaceState(null, '', nextUrl);
     }, [
         chartType,
         metric,
         networkLimitInput,
-        pathStartInput,
-        treeLayersInput,
+    pathStartInput,
+    treeColorEnabled,
+    treeLayersInput,
         treeTurnInput,
         xyLimitInput,
     ]);
@@ -763,6 +771,8 @@ export default function App() {
                                             setTreeTurnInput(nextValue === '' ? '0' : nextValue);
                                         })
                                     }
+                                    treeColorEnabled={treeColorEnabled}
+                                    setTreeColorEnabled={setTreeColorEnabled}
                                     pathStartInput={pathStartInput}
                                     setPathStartInput={(value) =>
                                         onUnsignedNumericInputChange(value, setPathStartInput)
@@ -773,9 +783,6 @@ export default function App() {
                                     setMetric={setMetric}
                                     layout='sidebar'
                                 />
-                                <Typography variant='caption' color='text.secondary' sx={{display: 'block', mt: 1.1}}>
-                                    Chart updates automatically when parameters change.
-                                </Typography>
                             </Paper>
 
                             {summary && chartType !== 'path' ? (
@@ -842,12 +849,14 @@ export default function App() {
                                     <ConvergenceTreeView
                                         data={treeData}
                                         turnDeg={treeTurnDeg}
+                                        colorEnabled={treeColorEnabled}
                                     />
                                 ) : null}
                                 {!loading && chartType === 'tree3d' && treeData ? (
                                     <ConvergenceTree3DView
                                         data={treeData}
                                         turnDeg={treeTurnDeg}
+                                        colorEnabled={treeColorEnabled}
                                     />
                                 ) : null}
                                 {chartType === 'path' && !pathLoading && pathData ? (

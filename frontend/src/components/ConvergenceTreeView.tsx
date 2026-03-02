@@ -6,6 +6,7 @@ import type {ConvergenceTreeData} from '../types';
 interface Props {
     data: ConvergenceTreeData;
     turnDeg: number;
+    colorEnabled: boolean;
 }
 
 interface NodePoint {
@@ -48,6 +49,21 @@ interface DragState {
     panY: number;
 }
 
+interface GradientColor {
+    stop: number;
+    r: number;
+    g: number;
+    b: number;
+}
+
+const TREE_GRADIENT: GradientColor[] = [
+    {stop: 0, r: 36, g: 40, b: 58},
+    {stop: 0.24, r: 98, g: 58, b: 136},
+    {stop: 0.48, r: 196, g: 92, b: 136},
+    {stop: 0.72, r: 238, g: 146, b: 118},
+    {stop: 1, r: 244, g: 198, b: 138},
+];
+
 function clamp(value: number, min: number, max: number): number {
     return Math.min(max, Math.max(min, value));
 }
@@ -58,6 +74,25 @@ function toFinite(value: number, fallback: number): number {
 
 function toRad(value: number): number {
     return (value * Math.PI) / 180;
+}
+
+function toGradientColor(ratio: number, alpha: number): string {
+    const t = clamp(ratio, 0, 1);
+    for (let index = 1; index < TREE_GRADIENT.length; index += 1) {
+        const left = TREE_GRADIENT[index - 1];
+        const right = TREE_GRADIENT[index];
+        if (t > right.stop) {
+            continue;
+        }
+        const span = Math.max(0.0001, right.stop - left.stop);
+        const local = (t - left.stop) / span;
+        const r = Math.round(left.r + (right.r - left.r) * local);
+        const g = Math.round(left.g + (right.g - left.g) * local);
+        const b = Math.round(left.b + (right.b - left.b) * local);
+        return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+    }
+    const fallback = TREE_GRADIENT[TREE_GRADIENT.length - 1];
+    return `rgba(${fallback.r}, ${fallback.g}, ${fallback.b}, ${alpha})`;
 }
 
 function buildLayout(data: ConvergenceTreeData, turnDeg: number, containerHeight: number): Layout2D {
@@ -189,7 +224,7 @@ function buildLayout(data: ConvergenceTreeData, turnDeg: number, containerHeight
     };
 }
 
-export function ConvergenceTreeView({data, turnDeg}: Props) {
+export function ConvergenceTreeView({data, turnDeg, colorEnabled}: Props) {
     const theme = useTheme();
     const containerRef = useRef<HTMLDivElement | null>(null);
     const zoomRef = useRef(1);
@@ -265,10 +300,15 @@ export function ConvergenceTreeView({data, turnDeg}: Props) {
         () => buildLayout(data, turnDeg, containerSize.height),
         [containerSize.height, data, turnDeg],
     );
-    const showLabels = zoom >= 0.08;
+    const safeMaxDepth = Math.max(1, toFinite(data.max_depth, 1));
+    const showLabels = zoom >= 0.28;
 
     const edgeElements = useMemo(
         () => layout.edges.map((edge, index) => {
+            const layerRatio = clamp(Math.max(edge.source.depth, edge.target.depth) / safeMaxDepth, 0, 1);
+            const lineColor = colorEnabled
+                ? toGradientColor(layerRatio, 0.82)
+                : 'rgba(220,230,255,0.84)';
             const isCycle = edge.source.value === 1 && edge.target.value === 4;
             if (isCycle) {
                 const dx = edge.target.x - edge.source.x;
@@ -284,7 +324,7 @@ export function ConvergenceTreeView({data, turnDeg}: Props) {
                         key={`cycle-${edge.source.id}-${edge.target.id}-${index}`}
                         d={`M ${edge.source.x} ${edge.source.y} Q ${controlX} ${controlY} ${edge.target.x} ${edge.target.y}`}
                         fill='none'
-                        stroke='rgba(220,230,255,0.86)'
+                        stroke={colorEnabled ? toGradientColor(layerRatio, 0.9) : 'rgba(220,230,255,0.86)'}
                         strokeWidth='1.35'
                         markerEnd='url(#cycle-arrow)'
                     />
@@ -297,49 +337,54 @@ export function ConvergenceTreeView({data, turnDeg}: Props) {
                     y1={edge.source.y}
                     x2={edge.target.x}
                     y2={edge.target.y}
-                    stroke='rgba(220,230,255,0.84)'
+                    stroke={lineColor}
                     strokeWidth='1.1'
                 />
             );
         }),
-        [layout.edges],
+        [colorEnabled, layout.edges, safeMaxDepth],
     );
 
     const nodeElements = useMemo(
         () => layout.nodes.map((node) => {
-            const digits = String(Math.abs(node.value)).length;
-            const fontSize = clamp(
-                layout.nodeRadius
-                * (digits >= 10 ? 0.4 : digits >= 8 ? 0.46 : digits >= 6 ? 0.54 : digits >= 4 ? 0.62 : 0.72),
-                2.8,
-                8.5,
-            );
+            const layerRatio = clamp(node.depth / safeMaxDepth, 0, 1);
+            const nodeStroke = colorEnabled ? toGradientColor(layerRatio, 0.95) : 'rgba(171,183,208,0.82)';
+            const nodeFill = colorEnabled ? toGradientColor(layerRatio, 0.24) : '#2d3543';
             return (
                 <g key={node.id}>
                     <circle
                         cx={node.x}
                         cy={node.y}
                         r={layout.nodeRadius}
-                        fill='#2d3543'
-                        stroke='rgba(171,183,208,0.82)'
+                        fill={nodeFill}
+                        stroke={nodeStroke}
                         strokeWidth='0.9'
                     />
-                    {showLabels ? (
-                        <text
-                            x={node.x}
-                            y={node.y + fontSize * 0.32}
-                            textAnchor='middle'
-                            fontSize={fontSize}
-                            fill={theme.palette.text.primary}
-                            style={{pointerEvents: 'none'}}
-                        >
-                            {node.value}
-                        </text>
-                    ) : null}
+                    {showLabels ? (() => {
+                        const digits = String(Math.abs(node.value)).length;
+                        const fontSize = clamp(
+                            layout.nodeRadius
+                            * (digits >= 10 ? 0.4 : digits >= 8 ? 0.46 : digits >= 6 ? 0.54 : digits >= 4 ? 0.62 : 0.72),
+                            2.8,
+                            8.5,
+                        );
+                        return (
+                            <text
+                                x={node.x}
+                                y={node.y + fontSize * 0.32}
+                                textAnchor='middle'
+                                fontSize={fontSize}
+                                fill={theme.palette.text.primary}
+                                style={{pointerEvents: 'none'}}
+                            >
+                                {node.value}
+                            </text>
+                        );
+                    })() : null}
                 </g>
             );
         }),
-        [layout.nodeRadius, layout.nodes, showLabels, theme.palette.text.primary],
+        [colorEnabled, layout.nodeRadius, layout.nodes, safeMaxDepth, showLabels, theme.palette.text.primary],
     );
 
     useEffect(() => {
