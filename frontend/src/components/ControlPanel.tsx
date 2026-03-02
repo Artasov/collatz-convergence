@@ -30,6 +30,8 @@ interface Props {
     onRandomizeTreeColors: () => void;
     pathStartInput: string;
     setPathStartInput: (value: string) => void;
+    flowSamplesInput: string;
+    setFlowSamplesInput: (value: string) => void;
     chartType: ChartType;
     setChartType: (value: ChartType) => void;
     metric: Metric;
@@ -99,6 +101,7 @@ export function ControlPanel(props: Props) {
                         <MenuItem value='xy'>XY line</MenuItem>
                         <MenuItem value='tree'>Convergence tree</MenuItem>
                         <MenuItem value='tree3d'>3D tree</MenuItem>
+                        <MenuItem value='flow3d'>3D flow arcs</MenuItem>
                         <MenuItem value='path'>Single number trace</MenuItem>
                         <MenuItem value='network'>Transition network</MenuItem>
                     </Select>
@@ -146,6 +149,79 @@ export function ControlPanel(props: Props) {
                     onChange={(event) => props.setPathStartInput(event.target.value)}
                     sx={isSidebar ? undefined : {minWidth: {xs: '100%', md: 190}}}
                 />
+            ) : null}
+
+            {props.chartType === 'flow3d' ? (
+                <Stack direction={isSidebar ? 'column' : 'row'} spacing={1} sx={{width: '100%'}}>
+                    <TextField
+                        label={(
+                            <FieldInfoLabel
+                                label='Random starts'
+                                description='How many random starting values are sampled below 1,000,000 to build the 3D trajectory flow.'
+                            />
+                        )}
+                        type='text'
+                        size='small'
+                        slotProps={{htmlInput: {...numericHtmlProps, maxLength: 6}}}
+                        value={props.flowSamplesInput}
+                        onChange={(event) => props.setFlowSamplesInput(event.target.value)}
+                        sx={isSidebar ? undefined : {minWidth: {xs: '100%', md: 190}}}
+                    />
+                    <Box
+                        sx={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 0.9,
+                            ml: isSidebar ? 0 : 0.5,
+                            mt: isSidebar ? 0 : 0.1,
+                        }}
+                    >
+                        <FormControlLabel
+                            sx={{
+                                m: 0,
+                                '& .MuiFormControlLabel-label': {
+                                    fontSize: 13,
+                                    color: 'text.secondary',
+                                    ml: 0.6,
+                                },
+                                '& .MuiSwitch-root': {
+                                    py: 0.4,
+                                },
+                            }}
+                            control={(
+                                <Switch
+                                    size='small'
+                                    checked={props.treeColorEnabled}
+                                    onChange={(event) => props.setTreeColorEnabled(event.target.checked)}
+                                />
+                            )}
+                            label='Color'
+                        />
+                        <Button
+                            size='small'
+                            variant='outlined'
+                            onClick={props.onRandomizeTreeColors}
+                            sx={{
+                                minWidth: 56,
+                                px: 0.85,
+                                py: 0.1,
+                                borderColor: 'rgba(164, 178, 208, 0.28)',
+                                color: 'text.secondary',
+                                bgcolor: 'rgba(255, 255, 255, 0.02)',
+                                fontSize: 11,
+                                fontWeight: 500,
+                                letterSpacing: '0.02em',
+                                textTransform: 'none',
+                                '&:hover': {
+                                    borderColor: 'rgba(164, 178, 208, 0.45)',
+                                    bgcolor: 'rgba(255, 255, 255, 0.06)',
+                                },
+                            }}
+                        >
+                            Random
+                        </Button>
+                    </Box>
+                </Stack>
             ) : null}
 
             {props.chartType === 'network' ? (

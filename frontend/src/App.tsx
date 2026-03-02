@@ -22,6 +22,7 @@ import {
 } from '@mui/material';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import {fetchNetworkChart, fetchPath, fetchTreeChart, fetchXYChart} from './api';
+import {ConvergenceFlow3DView} from './components/ConvergenceFlow3DView';
 import {ConvergenceTree3DView} from './components/ConvergenceTree3DView';
 import {ConvergenceTreeView} from './components/ConvergenceTreeView';
 import {ControlPanel} from './components/ControlPanel';
@@ -187,7 +188,7 @@ function getInitialSearchParams(): URLSearchParams {
 
 function getInitialChartType(searchParams: URLSearchParams): ChartType {
     const value = searchParams.get('chart');
-    if (value === 'xy' || value === 'network' || value === 'tree' || value === 'tree3d' || value === 'path') {
+    if (value === 'xy' || value === 'network' || value === 'tree' || value === 'tree3d' || value === 'flow3d' || value === 'path') {
         return value;
     }
     return 'xy';
@@ -274,6 +275,9 @@ export default function App() {
     const [pathStartInput, setPathStartInput] = useState(() =>
         getInitialNumericString(initialParams, 'start_n', '27'),
     );
+    const [flowSamplesInput, setFlowSamplesInput] = useState(() =>
+        getInitialNumericString(initialParams, 'flow_samples', '5000'),
+    );
     const [treeColorEnabled, setTreeColorEnabled] = useState(() => getInitialColorEnabled(initialParams));
     const [treeColorSeed, setTreeColorSeed] = useState(() => getInitialColorSeed(initialParams));
     const [debouncedXyLimit, setDebouncedXyLimit] = useState(() =>
@@ -311,6 +315,9 @@ export default function App() {
 
     const [debouncedPathStartN, setDebouncedPathStartN] = useState(() =>
         parsePositiveValue(getInitialNumericString(initialParams, 'start_n', '27'), 27),
+    );
+    const [debouncedFlowSamples, setDebouncedFlowSamples] = useState(() =>
+        parsePositiveValue(getInitialNumericString(initialParams, 'flow_samples', '5000'), 5000),
     );
     const [pathLoading, setPathLoading] = useState(false);
     const [pathError, setPathError] = useState<string | null>(null);
@@ -365,11 +372,14 @@ export default function App() {
         if (chartType === 'path') {
             return `Single trajectory for n=${pathStartN}`;
         }
+        if (chartType === 'flow3d') {
+            return `3D Collatz trajectory flow (${debouncedFlowSamples} random starts)`;
+        }
         if (chartType === 'tree3d') {
             return `3D tree (reverse Collatz, ${debouncedTreeLayers} layers)`;
         }
         return `Directed convergence graph (reverse tree, ${debouncedTreeLayers} layers)`;
-    }, [chartType, metric, debouncedTreeLayers, pathStartN]);
+    }, [chartType, metric, debouncedFlowSamples, debouncedTreeLayers, pathStartN]);
 
     const chartDescription = useMemo(() => {
         if (chartType === 'xy') {
@@ -382,6 +392,9 @@ export default function App() {
         }
         if (chartType === 'path') {
             return 'Trajectory for one start value until reaching 1, with step-by-step values and peak.';
+        }
+        if (chartType === 'flow3d') {
+            return 'Sampled trajectories from random starts below 1,000,000. Edges bend by parity rule and are styled by log1p traversal frequency.';
         }
         const turnText = treeTurnInput || '0';
         if (chartType === 'tree') {
@@ -578,6 +591,20 @@ export default function App() {
     }, [pathStartInput]);
 
     useEffect(() => {
+        const timerId = window.setTimeout(() => {
+            if (!flowSamplesInput) {
+                return;
+            }
+            const parsed = Number(flowSamplesInput);
+            if (!Number.isFinite(parsed) || parsed < 1) {
+                return;
+            }
+            setDebouncedFlowSamples(Math.floor(parsed));
+        }, 500);
+        return () => window.clearTimeout(timerId);
+    }, [flowSamplesInput]);
+
+    useEffect(() => {
         if (chartType !== 'path') {
             pathRequestRef.current += 1;
             setPathLoading(false);
@@ -602,6 +629,23 @@ export default function App() {
             void tracePath(debouncedPathStartN);
             return;
         }
+        if (chartType === 'flow3d') {
+            chartRequestRef.current += 1;
+            setLoading(false);
+            setError(null);
+            setSummary(null);
+            setHistogramData([]);
+            setXYData(null);
+            setNetworkData(null);
+            setTreeData(null);
+            setTreeWarningOpen(false);
+            setTreeWarningPendingLayers(null);
+            return;
+        }
+        const isLayeredTree = chartType === 'tree' || chartType === 'tree3d';
+        if (!isLayeredTree) {
+            return;
+        }
         const needsTreeConfirmation =
             debouncedTreeLayers > TREE_WARNING_THRESHOLD
             && !skipTreeWarning
@@ -619,6 +663,7 @@ export default function App() {
         chartType,
         metric,
         debouncedPathStartN,
+        debouncedFlowSamples,
         debouncedXyLimit,
         debouncedNetworkLimit,
         debouncedTreeLayers,
@@ -664,10 +709,12 @@ export default function App() {
         params.set('color', treeColorEnabled ? '1' : '0');
         params.set('color_seed', `${treeColorSeed}`);
         params.set('start_n', pathStartInput || '27');
+        params.set('flow_samples', flowSamplesInput || '5000');
         const nextUrl = `${window.location.pathname}?${params.toString()}`;
         window.history.replaceState(null, '', nextUrl);
     }, [
         chartType,
+        flowSamplesInput,
         metric,
         networkLimitInput,
         pathStartInput,
@@ -800,6 +847,10 @@ export default function App() {
                                     setPathStartInput={(value) =>
                                         onUnsignedNumericInputChange(value, setPathStartInput)
                                     }
+                                    flowSamplesInput={flowSamplesInput}
+                                    setFlowSamplesInput={(value) =>
+                                        onUnsignedNumericInputChange(value, setFlowSamplesInput)
+                                    }
                                     chartType={chartType}
                                     setChartType={setChartType}
                                     metric={metric}
@@ -880,6 +931,14 @@ export default function App() {
                                     <ConvergenceTree3DView
                                         data={treeData}
                                         turnDeg={treeTurnDeg}
+                                        colorEnabled={treeColorEnabled}
+                                        colorSeed={treeColorSeed}
+                                    />
+                                ) : null}
+                                {chartType === 'flow3d' ? (
+                                    <ConvergenceFlow3DView
+                                        sampleCount={debouncedFlowSamples}
+                                        maxStart={1000000}
                                         colorEnabled={treeColorEnabled}
                                         colorSeed={treeColorSeed}
                                     />
