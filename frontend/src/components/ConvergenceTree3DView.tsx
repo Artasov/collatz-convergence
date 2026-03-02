@@ -31,6 +31,7 @@ interface Layout3D {
   nodes: Node3D[];
   segments: Segment3D[];
   maxDepth: number;
+  rootPoint: Vec3;
   bounds: {
     minX: number;
     maxX: number;
@@ -65,6 +66,10 @@ function toFinite(value: number, fallback: number): number {
   return Number.isFinite(value) ? value : fallback;
 }
 
+function toRad(value: number): number {
+  return (value * Math.PI) / 180;
+}
+
 function rotateY(point: Vec3, angle: number): Vec3 {
   const cos = Math.cos(angle);
   const sin = Math.sin(angle);
@@ -89,91 +94,224 @@ function rotatePoint(point: Vec3, rotationX: number, rotationY: number): Vec3 {
   return rotateX(rotateY(point, rotationY), rotationX);
 }
 
-function buildLayout(data: ConvergenceTreeData, turnDeg: number): Layout3D {
-  const safeMaxDepth = Math.max(0, toFinite(data.max_depth, 0));
-  const nodesByDepth = new Map<number, Array<{ id: string; x: number; value: number; depth: number }>>();
-  const sourceNodeById = new Map(data.nodes.map((node) => [node.id, node]));
+function addVec(left: Vec3, right: Vec3): Vec3 {
+  return { x: left.x + right.x, y: left.y + right.y, z: left.z + right.z };
+}
 
-  let maxNodesInLayer = 1;
+function scaleVec(value: Vec3, factor: number): Vec3 {
+  return { x: value.x * factor, y: value.y * factor, z: value.z * factor };
+}
+
+function crossVec(left: Vec3, right: Vec3): Vec3 {
+  return {
+    x: left.y * right.z - left.z * right.y,
+    y: left.z * right.x - left.x * right.z,
+    z: left.x * right.y - left.y * right.x,
+  };
+}
+
+function lengthVec(value: Vec3): number {
+  return Math.hypot(value.x, value.y, value.z);
+}
+
+function normalizeVec(value: Vec3, fallback: Vec3): Vec3 {
+  const length = lengthVec(value);
+  if (length < 1e-9) {
+    return fallback;
+  }
+  return scaleVec(value, 1 / length);
+}
+
+function getRootId(data: ConvergenceTreeData, rawNodeById: Map<string, (typeof data.nodes)[number]>): string {
+  if (data.root && rawNodeById.has(data.root)) {
+    return data.root;
+  }
+  const byValue = data.nodes.find((node) => toFinite(node.value, 0) === 1);
+  if (byValue) {
+    return byValue.id;
+  }
+  return data.nodes[0]?.id ?? '1';
+}
+
+function buildGeometry(data: ConvergenceTreeData, turnDeg: number): Layout3D {
+  const safeMaxDepth = Math.max(0, toFinite(data.max_depth, 0));
+  const turnRad = toRad(turnDeg);
+  const rawNodeById = new Map(data.nodes.map((node) => [node.id, node]));
+  const rootId = getRootId(data, rawNodeById);
+
+  const depthByNodeId = new Map<string, number>();
+  const nodesByDepth = new Map<number, string[]>();
   for (const node of data.nodes) {
     const depth = clamp(toFinite(node.depth, 0), 0, safeMaxDepth);
+    depthByNodeId.set(node.id, depth);
     const layer = nodesByDepth.get(depth) ?? [];
-    layer.push({
-      id: node.id,
-      x: clamp(toFinite(node.x, 0.5), 0, 1),
-      value: toFinite(node.value, 0),
-      depth,
-    });
+    layer.push(node.id);
     nodesByDepth.set(depth, layer);
-    maxNodesInLayer = Math.max(maxNodesInLayer, layer.length);
   }
 
-  const turnSign = Math.sign(turnDeg);
-  const turnAbs = Math.abs(turnDeg);
-  const baseWidth = Math.max(4.2, maxNodesInLayer * 0.12);
-  const depthStep = 1.05;
-  const positionedNodes = new Map<string, Node3D>();
-
-  for (let depth = 0; depth <= safeMaxDepth; depth += 1) {
-    const layer = [...(nodesByDepth.get(depth) ?? [])].sort((left, right) => left.x - right.x);
-    if (!layer.length) {
+  const parentByNode = new Map<string, string>();
+  const childrenByParent = new Map<string, string[]>();
+  for (const edge of data.edges) {
+    const source = rawNodeById.get(edge.source);
+    const target = rawNodeById.get(edge.target);
+    if (!source || !target) {
       continue;
     }
+    const sourceDepth = clamp(toFinite(source.depth, 0), 0, safeMaxDepth);
+    const targetDepth = clamp(toFinite(target.depth, 0), 0, safeMaxDepth);
 
-    const progress = safeMaxDepth === 0 ? 0 : depth / safeMaxDepth;
-    const spreadX = 1 + progress * 0.22;
-    const spreadZ = 0.45 + progress * 1.85;
-    const bendX = turnSign * turnAbs * Math.pow(progress, 1.34) * (safeMaxDepth + 5) * 0.078;
-    const bendZ = turnSign * turnAbs * Math.pow(progress, 1.22) * (safeMaxDepth + 5) * 0.022;
-
-    const meanX = layer.reduce((acc, node) => acc + node.x, 0) / layer.length;
-    for (let index = 0; index < layer.length; index += 1) {
-      const node = layer[index];
-      const ratio = layer.length <= 1 ? 0.5 : index / (layer.length - 1);
-      const centered = ratio * 2 - 1;
-      const baseX = (node.x - meanX) * baseWidth * spreadX;
-
-      positionedNodes.set(node.id, {
-        id: node.id,
-        value: node.value,
-        depth: node.depth,
-        position: {
-          x: baseX + bendX,
-          y: -depth * depthStep,
-          z: centered * baseWidth * spreadZ * 0.72 + bendZ + baseX * (0.12 + progress * 0.07),
-        },
-      });
+    if (sourceDepth > targetDepth) {
+      if (!parentByNode.has(source.id)) {
+        parentByNode.set(source.id, target.id);
+      }
+      continue;
+    }
+    if (targetDepth > sourceDepth) {
+      if (!parentByNode.has(target.id)) {
+        parentByNode.set(target.id, source.id);
+      }
+      continue;
     }
   }
 
-  const rootNode = positionedNodes.get(data.root)
-    ?? [...positionedNodes.values()].find((node) => node.value === 1)
-    ?? [...positionedNodes.values()][0];
-  const shiftX = rootNode ? -rootNode.position.x : 0;
-  const shiftY = rootNode ? -rootNode.position.y : 0;
-  const shiftZ = rootNode ? -rootNode.position.z : 0;
+  for (const [nodeId, parentId] of parentByNode.entries()) {
+    const children = childrenByParent.get(parentId) ?? [];
+    children.push(nodeId);
+    childrenByParent.set(parentId, children);
+  }
+  for (const [parentId, children] of childrenByParent.entries()) {
+    children.sort((leftId, rightId) => {
+      const leftNode = rawNodeById.get(leftId);
+      const rightNode = rawNodeById.get(rightId);
+      const leftX = leftNode ? clamp(toFinite(leftNode.x, 0.5), 0, 1) : 0.5;
+      const rightX = rightNode ? clamp(toFinite(rightNode.x, 0.5), 0, 1) : 0.5;
+      if (leftX !== rightX) {
+        return leftX - rightX;
+      }
+      const leftValue = leftNode ? toFinite(leftNode.value, 0) : 0;
+      const rightValue = rightNode ? toFinite(rightNode.value, 0) : 0;
+      return leftValue - rightValue;
+    });
+    childrenByParent.set(parentId, children);
+  }
 
-  const nodes = [...positionedNodes.values()].map((node) => ({
-    ...node,
-    position: {
-      x: node.position.x + shiftX,
-      y: node.position.y + shiftY,
-      z: node.position.z + shiftZ,
-    },
-  }));
+  const positionById = new Map<string, Vec3>();
+  const directionById = new Map<string, Vec3>();
+  const phaseById = new Map<string, number>();
+
+  positionById.set(rootId, { x: 0, y: 0, z: 0 });
+  directionById.set(rootId, { x: 0, y: 1, z: 0 });
+  phaseById.set(rootId, 0);
+
+  for (let depth = 1; depth <= safeMaxDepth; depth += 1) {
+    const layerIds = nodesByDepth.get(depth) ?? [];
+    for (const nodeId of layerIds) {
+      const parentId = parentByNode.get(nodeId);
+      if (!parentId) {
+        continue;
+      }
+      const parentPosition = positionById.get(parentId);
+      const parentDirection = directionById.get(parentId);
+      if (!parentPosition || !parentDirection) {
+        continue;
+      }
+
+      const siblings = childrenByParent.get(parentId) ?? [nodeId];
+      const siblingIndex = Math.max(0, siblings.indexOf(nodeId));
+      const siblingCount = siblings.length;
+      const centered = siblingCount <= 1
+        ? 0
+        : (siblingIndex / (siblingCount - 1)) * 2 - 1;
+
+      const depthRatio = safeMaxDepth === 0 ? 0 : depth / safeMaxDepth;
+      const parentPhase = phaseById.get(parentId) ?? 0;
+      const sourceNode = rawNodeById.get(nodeId);
+      const value = sourceNode ? Math.abs(toFinite(sourceNode.value, 0)) : 0;
+      const hashUnit = ((value * 92821 + depth * 6899 + siblingIndex * 97) % 1000) / 1000;
+      const phase =
+        parentPhase
+        + centered * (Math.PI * 0.62)
+        + turnRad * depth
+        + hashUnit * 0.55;
+
+      const ref = Math.abs(parentDirection.y) > 0.92
+        ? { x: 1, y: 0, z: 0 }
+        : { x: 0, y: 1, z: 0 };
+      const basisU = normalizeVec(crossVec(parentDirection, ref), { x: 0, y: 0, z: 1 });
+      const basisV = normalizeVec(crossVec(basisU, parentDirection), { x: 1, y: 0, z: 0 });
+
+      const lateral = normalizeVec(
+        addVec(scaleVec(basisU, Math.cos(phase)), scaleVec(basisV, Math.sin(phase))),
+        basisU,
+      );
+      const tiltDeg = clamp(16 + depthRatio * 24 + Math.min(22, Math.abs(turnDeg) * 0.18), 8, 68);
+      const tiltRad = toRad(tiltDeg);
+      const branchDirection = normalizeVec(
+        addVec(
+          scaleVec(parentDirection, Math.cos(tiltRad)),
+          scaleVec(lateral, Math.sin(tiltRad)),
+        ),
+        parentDirection,
+      );
+      const step = 0.88 + depthRatio * 0.22;
+      const nodePosition = addVec(parentPosition, scaleVec(branchDirection, step));
+
+      positionById.set(nodeId, nodePosition);
+      directionById.set(nodeId, branchDirection);
+      phaseById.set(nodeId, phase);
+    }
+  }
+
+  for (let depth = 0; depth <= safeMaxDepth; depth += 1) {
+    const layerIds = nodesByDepth.get(depth) ?? [];
+    const count = layerIds.length;
+    for (let index = 0; index < count; index += 1) {
+      const nodeId = layerIds[index];
+      if (positionById.has(nodeId)) {
+        continue;
+      }
+      const ratio = count <= 1 ? 0.5 : index / (count - 1);
+      const angle = -Math.PI + ratio * Math.PI * 2 + turnRad * depth;
+      const radius = 0.2 + depth * 0.11;
+      const y = depth * 0.9;
+      const position = {
+        x: Math.cos(angle) * radius,
+        y,
+        z: Math.sin(angle) * radius,
+      };
+      positionById.set(nodeId, position);
+      directionById.set(nodeId, normalizeVec({ x: position.x, y: 1, z: position.z }, { x: 0, y: 1, z: 0 }));
+      phaseById.set(nodeId, angle);
+    }
+  }
+
+  const nodes: Node3D[] = data.nodes
+    .map((node) => {
+      const position = positionById.get(node.id);
+      if (!position) {
+        return null;
+      }
+      return {
+        id: node.id,
+        value: toFinite(node.value, 0),
+        depth: depthByNodeId.get(node.id) ?? 0,
+        position,
+      };
+    })
+    .filter((node): node is Node3D => node !== null);
 
   const nodeById = new Map(nodes.map((node) => [node.id, node]));
   const segments: Segment3D[] = [];
   for (const edge of data.edges) {
-    const sourceNode = sourceNodeById.get(edge.source);
-    const targetNode = sourceNodeById.get(edge.target);
-    if (!sourceNode || !targetNode) {
+    const sourceRaw = rawNodeById.get(edge.source);
+    const targetRaw = rawNodeById.get(edge.target);
+    if (!sourceRaw || !targetRaw) {
       continue;
     }
-    if (toFinite(sourceNode.value, 0) === 1 && toFinite(targetNode.value, 0) === 4) {
+    if (toFinite(sourceRaw.value, 0) === 1 && toFinite(targetRaw.value, 0) === 4) {
       continue;
     }
-    if (toFinite(sourceNode.depth, 0) <= toFinite(targetNode.depth, 0)) {
+    if (toFinite(sourceRaw.depth, 0) <= toFinite(targetRaw.depth, 0)) {
       continue;
     }
     const source = nodeById.get(edge.source);
@@ -202,6 +340,7 @@ function buildLayout(data: ConvergenceTreeData, turnDeg: number): Layout3D {
     minZ = Math.min(minZ, node.position.z);
     maxZ = Math.max(maxZ, node.position.z);
   }
+
   if (!Number.isFinite(minX)) {
     minX = -1;
     maxX = 1;
@@ -215,7 +354,27 @@ function buildLayout(data: ConvergenceTreeData, turnDeg: number): Layout3D {
     nodes,
     segments,
     maxDepth: Math.max(1, safeMaxDepth),
+    rootPoint: { x: 0, y: 0, z: 0 },
     bounds: { minX, maxX, minY, maxY, minZ, maxZ },
+  };
+}
+
+function projectRaw(
+  point: Vec3,
+  rotationX: number,
+  rotationY: number,
+  cameraDistance: number,
+  focal: number,
+): ProjectedPoint | null {
+  const rotated = rotatePoint(point, rotationX, rotationY);
+  const depth = cameraDistance + rotated.z;
+  if (depth <= 0.1) {
+    return null;
+  }
+  return {
+    x: (rotated.x * focal) / depth,
+    y: (-rotated.y * focal) / depth,
+    depth,
   };
 }
 
@@ -225,18 +384,18 @@ export function ConvergenceTree3DView({ data, turnDeg }: Props) {
 
   const [containerSize, setContainerSize] = useState({ width: 980, height: 620 });
   const [zoom, setZoom] = useState(1);
-  const [rotation, setRotation] = useState({ x: -0.54, y: 0.72 });
+  const [rotation, setRotation] = useState({ x: 0.18, y: 0.64 });
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [drag, setDrag] = useState<DragState | null>(null);
 
-  const geometry = useMemo(() => buildLayout(data, turnDeg), [data, turnDeg]);
+  const geometry = useMemo(() => buildGeometry(data, turnDeg), [data, turnDeg]);
 
   const cameraDistance = useMemo(() => {
     const spanX = Math.max(1, geometry.bounds.maxX - geometry.bounds.minX);
     const spanY = Math.max(1, geometry.bounds.maxY - geometry.bounds.minY);
     const spanZ = Math.max(1, geometry.bounds.maxZ - geometry.bounds.minZ);
     const span = Math.max(spanX, spanY, spanZ);
-    return Math.max(12, span * 2.2);
+    return Math.max(10, span * 2.4);
   }, [
     geometry.bounds.maxX,
     geometry.bounds.maxY,
@@ -265,6 +424,7 @@ export function ConvergenceTree3DView({ data, turnDeg }: Props) {
     if (!container) {
       return;
     }
+
     function onWheel(event: WheelEvent) {
       if (event.cancelable) {
         event.preventDefault();
@@ -273,32 +433,35 @@ export function ConvergenceTree3DView({ data, turnDeg }: Props) {
       const factor = event.deltaY < 0 ? 1.14 : 0.88;
       setZoom((current) => clamp(current * factor, 0.04, 120));
     }
+
     container.addEventListener('wheel', onWheel, { passive: false });
     return () => container.removeEventListener('wheel', onWheel);
   }, []);
 
   useEffect(() => {
-    const baseRotation = { x: -0.54, y: 0.72 };
+    const baseRotation = { x: 0.18, y: 0.64 };
     setRotation(baseRotation);
-
     const focal = Math.min(containerSize.width, containerSize.height) * 0.84;
+
     let minX = Number.POSITIVE_INFINITY;
     let maxX = Number.NEGATIVE_INFINITY;
     let minY = Number.POSITIVE_INFINITY;
     let maxY = Number.NEGATIVE_INFINITY;
-
     for (const node of geometry.nodes) {
-      const rotated = rotatePoint(node.position, baseRotation.x, baseRotation.y);
-      const depth = cameraDistance + rotated.z;
-      if (depth <= 0.1) {
+      const projected = projectRaw(
+        node.position,
+        baseRotation.x,
+        baseRotation.y,
+        cameraDistance,
+        focal,
+      );
+      if (!projected) {
         continue;
       }
-      const px = (rotated.x * focal) / depth;
-      const py = (-rotated.y * focal) / depth;
-      minX = Math.min(minX, px);
-      maxX = Math.max(maxX, px);
-      minY = Math.min(minY, py);
-      maxY = Math.max(maxY, py);
+      minX = Math.min(minX, projected.x);
+      maxX = Math.max(maxX, projected.x);
+      minY = Math.min(minY, projected.y);
+      maxY = Math.max(maxY, projected.y);
     }
 
     if (!Number.isFinite(minX)) {
@@ -310,16 +473,24 @@ export function ConvergenceTree3DView({ data, turnDeg }: Props) {
     const spanX = Math.max(1, maxX - minX);
     const spanY = Math.max(1, maxY - minY);
     const fitZoom = clamp(
-      Math.min((containerSize.width * 0.82) / spanX, (containerSize.height * 0.82) / spanY),
+      Math.min((containerSize.width * 0.84) / spanX, (containerSize.height * 0.84) / spanY),
       0.08,
       24,
     );
+    const rootProjected = projectRaw(
+      geometry.rootPoint,
+      baseRotation.x,
+      baseRotation.y,
+      cameraDistance,
+      focal,
+    ) ?? { x: 0, y: 0, depth: cameraDistance };
+
     setZoom(fitZoom);
     setPan({
-      x: -((minX + maxX) / 2) * fitZoom,
-      y: -((minY + maxY) / 2) * fitZoom,
+      x: containerSize.width / 2 - rootProjected.x * fitZoom,
+      y: containerSize.height * 0.86 - rootProjected.y * fitZoom,
     });
-  }, [cameraDistance, containerSize.height, containerSize.width, geometry.nodes]);
+  }, [cameraDistance, containerSize.height, containerSize.width, geometry.nodes, geometry.rootPoint]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -346,19 +517,18 @@ export function ConvergenceTree3DView({ data, turnDeg }: Props) {
     context.fillRect(0, 0, containerSize.width, containerSize.height);
 
     const focal = Math.min(containerSize.width, containerSize.height) * 0.84 * zoom;
-    const centerX = containerSize.width / 2 + pan.x;
-    const centerY = containerSize.height / 2 + pan.y;
+    const centerX = pan.x;
+    const centerY = pan.y;
 
     function project(point: Vec3): ProjectedPoint | null {
-      const rotated = rotatePoint(point, rotation.x, rotation.y);
-      const depth = cameraDistance + rotated.z;
-      if (depth <= 0.1) {
+      const raw = projectRaw(point, rotation.x, rotation.y, cameraDistance, focal);
+      if (!raw) {
         return null;
       }
       return {
-        x: centerX + (rotated.x * focal) / depth,
-        y: centerY - (rotated.y * focal) / depth,
-        depth,
+        x: centerX + raw.x,
+        y: centerY + raw.y,
+        depth: raw.depth,
       };
     }
 

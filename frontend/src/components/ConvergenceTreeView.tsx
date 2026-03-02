@@ -56,11 +56,15 @@ function toFinite(value: number, fallback: number): number {
   return Number.isFinite(value) ? value : fallback;
 }
 
+function toRad(value: number): number {
+  return (value * Math.PI) / 180;
+}
+
 function buildLayout(data: ConvergenceTreeData, turnDeg: number, containerHeight: number): Layout2D {
   const safeMaxDepth = Math.max(0, toFinite(data.max_depth, 0));
   const layerCount = safeMaxDepth + 1;
 
-  const nodesByDepth = new Map<number, NodePoint[]>();
+  const layers = new Map<number, NodePoint[]>();
   let maxNodesInLayer = 1;
   for (const rawNode of data.nodes) {
     const depth = clamp(toFinite(rawNode.depth, 0), 0, safeMaxDepth);
@@ -72,43 +76,31 @@ function buildLayout(data: ConvergenceTreeData, turnDeg: number, containerHeight
       x: clamp(toFinite(rawNode.x, 0.5), 0, 1),
       y: 0,
     };
-    const layer = nodesByDepth.get(depth) ?? [];
+    const layer = layers.get(depth) ?? [];
     layer.push(node);
-    nodesByDepth.set(depth, layer);
+    layers.set(depth, layer);
     maxNodesInLayer = Math.max(maxNodesInLayer, layer.length);
   }
 
-  const rowHeight = clamp((containerHeight - 132) / Math.max(1, layerCount - 1), 34, 56);
-  const nodeRadius = clamp(10.6 - Math.log2(maxNodesInLayer + 1), 3.2, 9.2);
-  const minGap = Math.max(nodeRadius * 2.15, 9.4);
+  const rowHeight = clamp((containerHeight - 130) / Math.max(1, layerCount - 1), 34, 56);
+  const nodeRadius = clamp(10.8 - Math.log2(maxNodesInLayer + 1), 3.2, 9.2);
+  const minGap = Math.max(nodeRadius * 2.2, 9.2);
   const baseLayerWidth = Math.max(260, maxNodesInLayer * minGap * 0.94);
-  const turnSign = Math.sign(turnDeg);
-  const turnAbs = Math.abs(turnDeg);
 
-  const transformedById = new Map<string, NodePoint>();
+  const basePoints = new Map<string, NodePoint>();
   for (let depth = 0; depth <= safeMaxDepth; depth += 1) {
-    const sourceLayer = nodesByDepth.get(depth) ?? [];
+    const sourceLayer = [...(layers.get(depth) ?? [])].sort((left, right) => left.x - right.x);
     if (!sourceLayer.length) {
       continue;
     }
 
     const progress = safeMaxDepth === 0 ? 0 : depth / safeMaxDepth;
     const spread = 1 + progress * 0.2;
-    const bendX =
-      turnSign
-      * turnAbs
-      * Math.pow(progress, 1.35)
-      * (safeMaxDepth + 4)
-      * 0.33;
-    const bendY = turnSign * turnAbs * Math.pow(progress, 1.25) * rowHeight * 0.018;
-
-    const layer = sourceLayer
-      .map((node) => ({
-        ...node,
-        x: (node.x - 0.5) * baseLayerWidth * spread + bendX,
-        y: -depth * rowHeight + bendY,
-      }))
-      .sort((left, right) => left.x - right.x);
+    const layer = sourceLayer.map((node) => ({
+      ...node,
+      x: (node.x - 0.5) * baseLayerWidth * spread,
+      y: -depth * rowHeight,
+    }));
 
     for (let index = 1; index < layer.length; index += 1) {
       const prev = layer[index - 1];
@@ -119,21 +111,43 @@ function buildLayout(data: ConvergenceTreeData, turnDeg: number, containerHeight
       }
     }
 
+    const meanX = layer.reduce((acc, node) => acc + node.x, 0) / layer.length;
     for (const node of layer) {
-      transformedById.set(node.id, node);
+      basePoints.set(node.id, {
+        ...node,
+        x: node.x - meanX,
+      });
     }
   }
 
-  const rootNode = transformedById.get(data.root)
-    ?? [...transformedById.values()].find((node) => node.value === 1)
-    ?? [...transformedById.values()][0];
-  const rootShiftX = rootNode ? -rootNode.x : 0;
-  const rootShiftY = rootNode ? -rootNode.y : 0;
+  const turnRad = toRad(turnDeg);
+  const transformedPoints = [...basePoints.values()].map((node) => {
+    if (node.depth === 0 || turnDeg === 0) {
+      return { ...node };
+    }
+    const depthAngle = node.depth * turnRad;
+    const cos = Math.cos(depthAngle);
+    const sin = Math.sin(depthAngle);
+    const radiusBoost = clamp(1 + Math.abs(turnRad) * node.depth * 0.045, 1, 4.2);
+    const rx = node.x * radiusBoost;
+    const ry = node.y * radiusBoost;
+    return {
+      ...node,
+      x: rx * cos - ry * sin,
+      y: rx * sin + ry * cos,
+    };
+  });
 
-  const nodes = [...transformedById.values()].map((node) => ({
+  const rootNode = transformedPoints.find((node) => node.id === data.root)
+    ?? transformedPoints.find((node) => node.value === 1)
+    ?? transformedPoints[0];
+  const shiftX = rootNode ? -rootNode.x : 0;
+  const shiftY = rootNode ? -rootNode.y : 0;
+
+  const nodes = transformedPoints.map((node) => ({
     ...node,
-    x: node.x + rootShiftX,
-    y: node.y + rootShiftY,
+    x: node.x + shiftX,
+    y: node.y + shiftY,
   }));
 
   const nodeById = new Map(nodes.map((node) => [node.id, node]));
@@ -257,7 +271,7 @@ export function ConvergenceTreeView({ data, turnDeg }: Props) {
     const fitZoom = clamp(
       Math.min((containerSize.width * 0.9) / spanX, (containerSize.height * 0.8) / spanY),
       0.2,
-      2.4,
+      2.5,
     );
     const nextPan = {
       x: containerSize.width / 2,
