@@ -8,6 +8,7 @@ interface Props {
     maxStart: number;
     colorEnabled: boolean;
     colorSeed: number;
+    tailVisibility: number;
 }
 
 interface Vec3 {
@@ -419,7 +420,7 @@ function buildModel(sampleCount: number, maxStart: number): ModelData {
     };
 }
 
-export function ConvergenceFlow3DView({sampleCount, maxStart, colorEnabled, colorSeed}: Props) {
+export function ConvergenceFlow3DView({sampleCount, maxStart, colorEnabled, colorSeed, tailVisibility}: Props) {
     const containerRef = useRef<HTMLDivElement | null>(null);
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
     const projectedNodesRef = useRef<ProjectedNode[]>([]);
@@ -439,6 +440,7 @@ export function ConvergenceFlow3DView({sampleCount, maxStart, colorEnabled, colo
 
     const model = useMemo(() => buildModel(sampleCount, maxStart), [maxStart, sampleCount]);
     const gradient = useMemo(() => buildTreeGradient(colorSeed), [colorSeed]);
+    const tailVisibilityLevel = useMemo(() => clamp(tailVisibility, 1, 6), [tailVisibility]);
 
     const cameraDistance = useMemo(() => {
         const spanX = Math.max(1, model.bounds.maxX - model.bounds.minX);
@@ -661,6 +663,8 @@ export function ConvergenceFlow3DView({sampleCount, maxStart, colorEnabled, colo
             })
             .filter((segment): segment is NonNullable<typeof segment> => segment !== null);
         projectedSegments.sort((left, right) => right.depth - left.depth);
+        const faintLift = (tailVisibilityLevel - 1) / 5;
+        const minHitRatio = 0.028 * (1 - faintLift * 0.8);
 
         for (const segment of projectedSegments) {
             const layerSpan = 1 / Math.max(1, model.maxDepth);
@@ -670,16 +674,20 @@ export function ConvergenceFlow3DView({sampleCount, maxStart, colorEnabled, colo
                 continue;
             }
             const hitRatio = clamp(Math.log1p(segment.hits) / model.maxLogHit, 0, 1);
-            if (hitRatio < 0.028) {
+            if (hitRatio < minHitRatio) {
                 continue;
             }
             const widthFactor = Math.pow(hitRatio, 1.95);
             const alphaFactor = Math.pow(hitRatio, 1.35);
             const colorRatio = 1 - hitRatio;
             const perspective = clamp(28 / segment.depth, 0.3, 1.7);
-            const alpha = clamp(0.012 + alphaFactor * 0.9, 0.012, 0.92);
+            const alphaBase = 0.012 + alphaFactor * 0.9;
+            const alphaBoost = faintLift * (0.16 + (1 - hitRatio) * 0.38);
+            const alpha = clamp(alphaBase + alphaBoost, 0.012, 0.96);
             const zoomBoost = clamp(Math.pow(Math.max(zoom, 0.25), 0.23), 0.75, 2.4);
-            const width = clamp((0.03 + widthFactor * 8.2) * perspective * zoomBoost, 0.025, 8.8);
+            const widthBase = (0.03 + widthFactor * 8.2) * perspective * zoomBoost;
+            const widthBoost = faintLift * (0.85 + (1 - hitRatio) * 1.4) * perspective;
+            const width = clamp(widthBase + widthBoost, 0.025, 9.2);
             context.strokeStyle = colorEnabled
                 ? toGradientColor(gradient, colorRatio, alpha)
                 : `rgba(206, 218, 244, ${alpha})`;
@@ -752,6 +760,7 @@ export function ConvergenceFlow3DView({sampleCount, maxStart, colorEnabled, colo
         model.maxDepth,
         animationProgress,
         colorEnabled,
+        tailVisibilityLevel,
         pan.x,
         pan.y,
         rotation.x,
@@ -995,8 +1004,8 @@ export function ConvergenceFlow3DView({sampleCount, maxStart, colorEnabled, colo
                 <Typography variant='caption' color='text.secondary'>
                     3D flow arcs: {sampleCount} random starts below {maxStart.toLocaleString('en-US')}, even turn +8.65
                     deg,
-                    odd turn -16 deg, edge length~1/log(node), style~log1p(traversals), width~log1p(traversals). Drag to
-                    orbit, wheel to zoom.
+                    odd turn -16 deg, edge length~1/log(node), style~log1p(traversals), width~log1p(traversals),
+                    tail visibility {tailVisibilityLevel.toFixed(1)}x. Drag to orbit, wheel to zoom.
                 </Typography>
             </Box>
             <Box

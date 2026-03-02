@@ -249,6 +249,18 @@ function getInitialColorSeed(searchParams: URLSearchParams): number {
     return Math.max(0, Math.floor(parsed));
 }
 
+function getInitialFlowTailVisibility(searchParams: URLSearchParams): number {
+    const raw = searchParams.get('flow_tail');
+    if (!raw) {
+        return 1;
+    }
+    const parsed = Number(raw);
+    if (!Number.isFinite(parsed)) {
+        return 1;
+    }
+    return Math.min(6, Math.max(1, parsed));
+}
+
 function parsePositiveValue(value: string, fallback: number): number {
     const parsed = Number(value);
     if (!Number.isFinite(parsed) || parsed < 1) {
@@ -280,6 +292,7 @@ export default function App() {
     );
     const [treeColorEnabled, setTreeColorEnabled] = useState(() => getInitialColorEnabled(initialParams));
     const [treeColorSeed, setTreeColorSeed] = useState(() => getInitialColorSeed(initialParams));
+    const [flowTailVisibility, setFlowTailVisibility] = useState(() => getInitialFlowTailVisibility(initialParams));
     const [debouncedXyLimit, setDebouncedXyLimit] = useState(() =>
         parsePositiveValue(getInitialNumericString(initialParams, 'xy_limit', '500'), 500),
     );
@@ -710,10 +723,12 @@ export default function App() {
         params.set('color_seed', `${treeColorSeed}`);
         params.set('start_n', pathStartInput || '27');
         params.set('flow_samples', flowSamplesInput || '5000');
+        params.set('flow_tail', `${flowTailVisibility.toFixed(1)}`);
         const nextUrl = `${window.location.pathname}?${params.toString()}`;
         window.history.replaceState(null, '', nextUrl);
     }, [
         chartType,
+        flowTailVisibility,
         flowSamplesInput,
         metric,
         networkLimitInput,
@@ -851,6 +866,8 @@ export default function App() {
                                     setFlowSamplesInput={(value) =>
                                         onUnsignedNumericInputChange(value, setFlowSamplesInput)
                                     }
+                                    flowTailVisibility={flowTailVisibility}
+                                    setFlowTailVisibility={setFlowTailVisibility}
                                     chartType={chartType}
                                     setChartType={setChartType}
                                     metric={metric}
@@ -941,6 +958,7 @@ export default function App() {
                                         maxStart={1000000}
                                         colorEnabled={treeColorEnabled}
                                         colorSeed={treeColorSeed}
+                                        tailVisibility={flowTailVisibility}
                                     />
                                 ) : null}
                                 {chartType === 'path' && !pathLoading && pathData ? (

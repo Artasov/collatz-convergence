@@ -7,6 +7,7 @@ import {
     InputLabel,
     MenuItem,
     Select,
+    Slider,
     Stack,
     Switch,
     TextField,
@@ -32,6 +33,8 @@ interface Props {
     setPathStartInput: (value: string) => void;
     flowSamplesInput: string;
     setFlowSamplesInput: (value: string) => void;
+    flowTailVisibility: number;
+    setFlowTailVisibility: (value: number) => void;
     chartType: ChartType;
     setChartType: (value: ChartType) => void;
     metric: Metric;
@@ -152,74 +155,98 @@ export function ControlPanel(props: Props) {
             ) : null}
 
             {props.chartType === 'flow3d' ? (
-                <Stack direction={isSidebar ? 'column' : 'row'} spacing={1} sx={{width: '100%'}}>
-                    <TextField
-                        label={(
-                            <FieldInfoLabel
-                                label='Random starts'
-                                description='How many random starting values are sampled below 1,000,000 to build the 3D trajectory flow.'
-                            />
-                        )}
-                        type='text'
-                        size='small'
-                        slotProps={{htmlInput: {...numericHtmlProps, maxLength: 6}}}
-                        value={props.flowSamplesInput}
-                        onChange={(event) => props.setFlowSamplesInput(event.target.value)}
-                        sx={isSidebar ? undefined : {minWidth: {xs: '100%', md: 190}}}
-                    />
-                    <Box
-                        sx={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 0.9,
-                            ml: isSidebar ? 0 : 0.5,
-                            mt: isSidebar ? 0 : 0.1,
-                        }}
-                    >
-                        <FormControlLabel
-                            sx={{
-                                m: 0,
-                                '& .MuiFormControlLabel-label': {
-                                    fontSize: 13,
-                                    color: 'text.secondary',
-                                    ml: 0.6,
-                                },
-                                '& .MuiSwitch-root': {
-                                    py: 0.4,
-                                },
-                            }}
-                            control={(
-                                <Switch
-                                    size='small'
-                                    checked={props.treeColorEnabled}
-                                    onChange={(event) => props.setTreeColorEnabled(event.target.checked)}
+                <Stack spacing={1} sx={{width: '100%'}}>
+                    <Stack direction={isSidebar ? 'column' : 'row'} spacing={1} sx={{width: '100%'}}>
+                        <TextField
+                            label={(
+                                <FieldInfoLabel
+                                    label='Random starts'
+                                    description='How many random starting values are sampled below 1,000,000 to build the 3D trajectory flow.'
                                 />
                             )}
-                            label='Color'
-                        />
-                        <Button
+                            type='text'
                             size='small'
-                            variant='outlined'
-                            onClick={props.onRandomizeTreeColors}
+                            slotProps={{htmlInput: {...numericHtmlProps, maxLength: 6}}}
+                            value={props.flowSamplesInput}
+                            onChange={(event) => props.setFlowSamplesInput(event.target.value)}
+                            sx={isSidebar ? undefined : {minWidth: {xs: '100%', md: 190}}}
+                        />
+                        <Box
                             sx={{
-                                minWidth: 56,
-                                px: 0.85,
-                                py: 0.1,
-                                borderColor: 'rgba(164, 178, 208, 0.28)',
-                                color: 'text.secondary',
-                                bgcolor: 'rgba(255, 255, 255, 0.02)',
-                                fontSize: 11,
-                                fontWeight: 500,
-                                letterSpacing: '0.02em',
-                                textTransform: 'none',
-                                '&:hover': {
-                                    borderColor: 'rgba(164, 178, 208, 0.45)',
-                                    bgcolor: 'rgba(255, 255, 255, 0.06)',
-                                },
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 0.9,
+                                ml: isSidebar ? 0 : 0.5,
+                                mt: isSidebar ? 0 : 0.1,
                             }}
                         >
-                            Random
-                        </Button>
+                            <FormControlLabel
+                                sx={{
+                                    m: 0,
+                                    '& .MuiFormControlLabel-label': {
+                                        fontSize: 13,
+                                        color: 'text.secondary',
+                                        ml: 0.6,
+                                    },
+                                    '& .MuiSwitch-root': {
+                                        py: 0.4,
+                                    },
+                                }}
+                                control={(
+                                    <Switch
+                                        size='small'
+                                        checked={props.treeColorEnabled}
+                                        onChange={(event) => props.setTreeColorEnabled(event.target.checked)}
+                                    />
+                                )}
+                                label='Color'
+                            />
+                            <Button
+                                size='small'
+                                variant='outlined'
+                                onClick={props.onRandomizeTreeColors}
+                                sx={{
+                                    minWidth: 56,
+                                    px: 0.85,
+                                    py: 0.1,
+                                    borderColor: 'rgba(164, 178, 208, 0.28)',
+                                    color: 'text.secondary',
+                                    bgcolor: 'rgba(255, 255, 255, 0.02)',
+                                    fontSize: 11,
+                                    fontWeight: 500,
+                                    letterSpacing: '0.02em',
+                                    textTransform: 'none',
+                                    '&:hover': {
+                                        borderColor: 'rgba(164, 178, 208, 0.45)',
+                                        bgcolor: 'rgba(255, 255, 255, 0.06)',
+                                    },
+                                }}
+                            >
+                                Random
+                            </Button>
+                        </Box>
+                    </Stack>
+                    <Box sx={{display: 'flex', alignItems: 'center', gap: 1}}>
+                        <Typography variant='caption' color='text.secondary' sx={{minWidth: 88}}>
+                            Tail visibility
+                        </Typography>
+                        <Slider
+                            size='small'
+                            min={1}
+                            max={6}
+                            step={0.1}
+                            value={props.flowTailVisibility}
+                            onChange={(_, value) =>
+                                props.setFlowTailVisibility(Array.isArray(value) ? value[0] : value)
+                            }
+                            valueLabelDisplay='auto'
+                            valueLabelFormat={(value) => `${value.toFixed(1)}x`}
+                            aria-label='Tail visibility'
+                            sx={{flex: 1}}
+                        />
+                        <Typography variant='caption' color='text.secondary' sx={{minWidth: 34, textAlign: 'right'}}>
+                            {props.flowTailVisibility.toFixed(1)}x
+                        </Typography>
                     </Box>
                 </Stack>
             ) : null}
