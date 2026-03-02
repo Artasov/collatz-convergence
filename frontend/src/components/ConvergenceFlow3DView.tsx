@@ -1,6 +1,6 @@
 import type {PointerEvent} from 'react';
 import {useEffect, useMemo, useRef, useState} from 'react';
-import {Box, Paper, Typography} from '@mui/material';
+import {Box, Button, Paper, Typography} from '@mui/material';
 import {buildTreeGradient, toGradientColor} from './treeGradient';
 
 interface Props {
@@ -26,6 +26,7 @@ interface Node3D {
 interface Segment3D {
     source: Vec3;
     target: Vec3;
+    depth: number;
     hits: number;
     curve: number;
 }
@@ -179,6 +180,16 @@ function projectRaw(
         y: (-rotatedLocal.y * focal) / depth,
         depth,
     };
+}
+
+function quadraticPoint(start: { x: number; y: number }, control: { x: number; y: number }, end: {
+    x: number;
+    y: number
+}, t: number): { x: number; y: number } {
+    const oneMinusT = 1 - t;
+    const x = oneMinusT * oneMinusT * start.x + 2 * oneMinusT * t * control.x + t * t * end.x;
+    const y = oneMinusT * oneMinusT * start.y + 2 * oneMinusT * t * control.y + t * t * end.y;
+    return {x, y};
 }
 
 function buildModel(sampleCount: number, maxStart: number): ModelData {
@@ -383,6 +394,7 @@ function buildModel(sampleCount: number, maxStart: number): ModelData {
         segments.push({
             source,
             target,
+            depth: depthByValue.get(edge.target) ?? 1,
             hits: edge.hits,
             curve: (edge.target % 2 === 0 ? 0.34 : -0.38) + (hashUnit(edge.source * 239017 + edge.target * 9137) - 0.5) * 0.16,
         });
@@ -420,6 +432,10 @@ export function ConvergenceFlow3DView({sampleCount, maxStart, colorEnabled, colo
     const [drag, setDrag] = useState<DragState | null>(null);
     const [hoverNode, setHoverNode] = useState<HoverNodeState | null>(null);
     const [isWheeling, setIsWheeling] = useState(false);
+    const [isAnimatingGrowth, setIsAnimatingGrowth] = useState(false);
+    const [animationProgress, setAnimationProgress] = useState(1);
+    const animationBaseRef = useRef(0);
+    const animationFrameRef = useRef<number | null>(null);
 
     const model = useMemo(() => buildModel(sampleCount, maxStart), [maxStart, sampleCount]);
     const gradient = useMemo(() => buildTreeGradient(colorSeed), [colorSeed]);
@@ -438,6 +454,61 @@ export function ConvergenceFlow3DView({sampleCount, maxStart, colorEnabled, colo
         model.bounds.minY,
         model.bounds.minZ,
     ]);
+
+    const animationDurationMs = useMemo(
+        () => clamp(model.maxDepth * 210, 3600, 22000),
+        [model.maxDepth],
+    );
+
+    useEffect(() => {
+        setIsAnimatingGrowth(false);
+        setAnimationProgress(1);
+        animationBaseRef.current = 1;
+    }, [sampleCount, maxStart]);
+
+    useEffect(() => {
+        if (!isAnimatingGrowth) {
+            if (animationFrameRef.current !== null) {
+                window.cancelAnimationFrame(animationFrameRef.current);
+                animationFrameRef.current = null;
+            }
+            return;
+        }
+        const start = performance.now();
+        const base = animationBaseRef.current;
+        const remain = Math.max(0.0001, 1 - base);
+        const duration = animationDurationMs * remain;
+        const step = (now: number) => {
+            const elapsed = now - start;
+            const t = clamp(base + elapsed / duration, 0, 1);
+            setAnimationProgress(t);
+            if (t >= 1) {
+                setIsAnimatingGrowth(false);
+                animationFrameRef.current = null;
+                animationBaseRef.current = 1;
+                return;
+            }
+            animationFrameRef.current = window.requestAnimationFrame(step);
+        };
+        animationFrameRef.current = window.requestAnimationFrame(step);
+        return () => {
+            if (animationFrameRef.current !== null) {
+                window.cancelAnimationFrame(animationFrameRef.current);
+                animationFrameRef.current = null;
+            }
+        };
+    }, [animationDurationMs, isAnimatingGrowth]);
+
+    function onStartGrowth() {
+        setAnimationProgress(0);
+        animationBaseRef.current = 0;
+        setIsAnimatingGrowth(true);
+    }
+
+    function onStopGrowth() {
+        animationBaseRef.current = animationProgress;
+        setIsAnimatingGrowth(false);
+    }
 
     useEffect(() => {
         if (!containerRef.current) {
@@ -583,6 +654,7 @@ export function ConvergenceFlow3DView({sampleCount, maxStart, colorEnabled, colo
                     targetX: target.x,
                     targetY: target.y,
                     depth: (source.depth + target.depth) / 2,
+                    layerDepth: segment.depth,
                     hits: segment.hits,
                     curve: segment.curve,
                 };
@@ -591,6 +663,12 @@ export function ConvergenceFlow3DView({sampleCount, maxStart, colorEnabled, colo
         projectedSegments.sort((left, right) => right.depth - left.depth);
 
         for (const segment of projectedSegments) {
+            const layerSpan = 1 / Math.max(1, model.maxDepth);
+            const layerStart = Math.max(0, (segment.layerDepth - 1) * layerSpan);
+            const localProgress = clamp((animationProgress - layerStart) / layerSpan, 0, 1);
+            if (localProgress <= 0) {
+                continue;
+            }
             const hitRatio = clamp(Math.log1p(segment.hits) / model.maxLogHit, 0, 1);
             if (hitRatio < 0.028) {
                 continue;
@@ -616,9 +694,25 @@ export function ConvergenceFlow3DView({sampleCount, maxStart, colorEnabled, colo
             const controlX = (segment.sourceX + segment.targetX) / 2 + nx * curvature;
             const controlY = (segment.sourceY + segment.targetY) / 2 + ny * curvature;
 
+            if (localProgress >= 0.999) {
+                context.beginPath();
+                context.moveTo(segment.sourceX, segment.sourceY);
+                context.quadraticCurveTo(controlX, controlY, segment.targetX, segment.targetY);
+                context.stroke();
+                continue;
+            }
+
+            const start = {x: segment.sourceX, y: segment.sourceY};
+            const control = {x: controlX, y: controlY};
+            const end = {x: segment.targetX, y: segment.targetY};
+            const samples = 6 + Math.floor(localProgress * 16);
             context.beginPath();
-            context.moveTo(segment.sourceX, segment.sourceY);
-            context.quadraticCurveTo(controlX, controlY, segment.targetX, segment.targetY);
+            context.moveTo(start.x, start.y);
+            for (let step = 1; step <= samples; step += 1) {
+                const t = (step / samples) * localProgress;
+                const point = quadraticPoint(start, control, end, t);
+                context.lineTo(point.x, point.y);
+            }
             context.stroke();
         }
 
@@ -655,6 +749,8 @@ export function ConvergenceFlow3DView({sampleCount, maxStart, colorEnabled, colo
         model.maxLogHit,
         model.nodes,
         model.segments,
+        model.maxDepth,
+        animationProgress,
         colorEnabled,
         pan.x,
         pan.y,
@@ -781,6 +877,79 @@ export function ConvergenceFlow3DView({sampleCount, maxStart, colorEnabled, colo
                     display: 'block',
                 }}
             />
+            <Box
+                sx={{
+                    position: 'absolute',
+                    top: 8,
+                    left: 10,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 0.7,
+                    zIndex: 20,
+                }}
+                onPointerDown={(event) => {
+                    event.stopPropagation();
+                }}
+                onPointerMove={(event) => {
+                    event.stopPropagation();
+                }}
+                onPointerUp={(event) => {
+                    event.stopPropagation();
+                }}
+                onClick={(event) => {
+                    event.stopPropagation();
+                }}
+            >
+                <Button
+                    size='small'
+                    variant='outlined'
+                    onClick={(event) => {
+                        event.stopPropagation();
+                        onStartGrowth();
+                    }}
+                    sx={{
+                        minWidth: 58,
+                        px: 0.95,
+                        py: 0.2,
+                        borderColor: 'rgba(164, 178, 208, 0.34)',
+                        color: 'text.secondary',
+                        bgcolor: 'rgba(255, 255, 255, 0.02)',
+                        fontSize: 11,
+                        textTransform: 'none',
+                        '&:hover': {
+                            borderColor: 'rgba(164, 178, 208, 0.5)',
+                            bgcolor: 'rgba(255, 255, 255, 0.06)',
+                        },
+                    }}
+                >
+                    Start
+                </Button>
+                <Button
+                    size='small'
+                    variant='outlined'
+                    onClick={(event) => {
+                        event.stopPropagation();
+                        onStopGrowth();
+                    }}
+                    disabled={!isAnimatingGrowth}
+                    sx={{
+                        minWidth: 56,
+                        px: 0.9,
+                        py: 0.2,
+                        borderColor: 'rgba(164, 178, 208, 0.28)',
+                        color: 'text.secondary',
+                        bgcolor: 'rgba(255, 255, 255, 0.02)',
+                        fontSize: 11,
+                        textTransform: 'none',
+                        '&:hover': {
+                            borderColor: 'rgba(164, 178, 208, 0.45)',
+                            bgcolor: 'rgba(255, 255, 255, 0.06)',
+                        },
+                    }}
+                >
+                    Stop
+                </Button>
+            </Box>
             {hoverNode ? (
                 <Paper
                     elevation={6}
