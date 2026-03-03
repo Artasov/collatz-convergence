@@ -1,10 +1,10 @@
-# LotharCollatz Visualizer
+# Collatz Convergence Explorer
 
 Interactive project for exploring the `3n + 1` (Collatz) conjecture with a FastAPI backend and a React + Vite frontend.
 
 ## What is this project
 
-`LotharCollatz Visualizer` computes Collatz trajectories and shows them in several chart types:
+`Collatz Convergence Explorer` computes Collatz trajectories and shows them in several chart types:
 
 - `XY line`: one point per start value `n`, metric is either `steps to 1` or `peak value`.
 - `Transition network (hairball)`: dense directed graph of transitions `n -> f(n)`.

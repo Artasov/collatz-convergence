@@ -1,7 +1,7 @@
 [tool.poetry]
-name = "lothar-collatz"
+name = "collatz-convergence-explorer-api"
 version = "0.1.0"
-description = "LotharCollatz (3n + 1) generator and visualization API"
+description = "Collatz Convergence Explorer (3n + 1) API"
 authors = ["Artasov <ivanhvalevskey@gmail.com>"]
 readme = "README.md"
 package-mode = false

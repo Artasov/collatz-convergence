@@ -48,7 +48,7 @@ interface Insight {
 }
 
 const TREE_WARNING_THRESHOLD = 32;
-const TREE_WARNING_SKIP_KEY = 'lothar_collatz_skip_tree_warning';
+const TREE_WARNING_SKIP_KEY = 'collatz_convergence_explorer_skip_tree_warning';
 const DEFAULT_TREE_COLOR_SEED = 137;
 
 function InsightCard(props: Insight) {
@@ -774,7 +774,7 @@ export default function App() {
                             <Paper sx={{p: 1.5}}>
                                 <Stack spacing={1.1}>
                                     <Typography variant='h5' sx={{fontWeight: 800, lineHeight: 1.15}}>
-                                        LotharCollatz Visualizer
+                                        Collatz Convergence Explorer
                                     </Typography>
                                     <Typography variant='body2' color='text.secondary'>
                                         Explore 3n + 1 trajectories with several complementary views.
@@ -1040,7 +1040,7 @@ export default function App() {
                     <Stack direction={{xs: 'column', md: 'row'}} spacing={1.2}
                            alignItems={{xs: 'flex-start', md: 'center'}}>
                         <Typography variant='caption' color='text.secondary'>
-                            LotharCollatz Visualizer
+                            Collatz Convergence Explorer
                         </Typography>
                         <Link href='https://xlartas.com/' target='_blank' rel='noreferrer' underline='hover'
                               variant='caption' color='primary.light'>
