@@ -42,6 +42,36 @@ Project structure:
 
 - `backend`: FastAPI, domain/services/repositories, PostgreSQL persistence
 - `frontend`: React + Vite + MUI charts and interaction UI
+- `docs/er-diagram.md`: ER diagram for PostgreSQL schema `collatz`
+
+## Database ER diagram
+
+- File: `docs/er-diagram.md`
+- Covers tables:
+  - `collatz.generations`
+  - `collatz.sequences`
+  - `collatz.edges`
+
+## Docker Compose (one command)
+
+- Copy example env:
+
+```bash
+cp .env.example .env
+```
+
+- Start all services (`db + backend + frontend`):
+
+```bash
+docker compose up --build
+```
+
+- URLs:
+  - Frontend: `http://localhost:5173`
+  - Backend API: `http://localhost:8000`
+  - Swagger: `http://localhost:8000/docs`
+
+- Note: backend container runs `alembic upgrade head` automatically before `uvicorn` start.
 
 ## Local run
 
