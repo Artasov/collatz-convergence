@@ -43,31 +43,6 @@ Project structure:
 - `backend`: FastAPI, domain/services/repositories, PostgreSQL persistence
 - `frontend`: React + Vite + MUI charts and interaction UI
 
-Backend layers:
-
-- `api`: routes and request/response contracts
-- `services`: orchestration and use-cases
-- `domain`: generation logic and chart builders
-- `infrastructure`: PostgreSQL models/repository
-- `core`: app settings
-
-## API endpoints
-
-- `POST /api/generate?limit=...&persist=true|false`
-- `GET /api/charts/xy?limit=...&metric=steps|max_value&source=auto|fresh|cache`
-- `GET /api/charts/network?limit=...&source=auto|fresh|cache`
-- `GET /api/charts/tree?layers=...&source=auto|fresh|cache`
-- `GET /api/path?start_n=...`
-- `GET /api/health`
-
-## Data storage
-
-PostgreSQL schema: `collatz`
-
-- `collatz.generations`: generation metadata per limit
-- `collatz.sequences`: trajectories per start value (`steps`, `max_value`, `path`)
-- `collatz.edges`: aggregated transition graph (`source`, `target`, `weight`)
-
 ## Local run
 
 ### Backend
@@ -85,10 +60,4 @@ poetry run uvicorn app.main:app --reload --port 8000
 cd frontend
 npm install
 npm run dev
-```
-
-If API host differs from default:
-
-```bash
-set VITE_API_BASE=http://your-host:port
 ```
