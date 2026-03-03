@@ -31,8 +31,8 @@ erDiagram
     int weight
   }
 
-  COLLATZ_GENERATIONS ||--o{ COLLATZ_SEQUENCES : '1 to many'
-  COLLATZ_GENERATIONS ||--o{ COLLATZ_EDGES : '1 to many'
+  COLLATZ_GENERATIONS ||--o{ COLLATZ_SEQUENCES : one_to_many
+  COLLATZ_GENERATIONS ||--o{ COLLATZ_EDGES : one_to_many
 ```
 
 Notes:
