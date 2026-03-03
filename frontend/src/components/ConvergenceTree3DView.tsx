@@ -1,6 +1,6 @@
 import type {PointerEvent} from 'react';
 import {useEffect, useMemo, useRef, useState} from 'react';
-import {Box, Paper, Typography} from '@mui/material';
+import {Box, Button, Paper, Typography} from '@mui/material';
 import type {ConvergenceTreeData} from '../types';
 import {buildTreeGradient, toGradientColor} from './treeGradient';
 
@@ -370,8 +370,8 @@ function buildGeometry(data: ConvergenceTreeData, turnDeg: number): Layout3D {
             continue;
         }
         segments.push({
-            source: source.position,
-            target: target.position,
+            source: target.position,
+            target: source.position,
             depth: Math.max(source.depth, target.depth),
         });
     }
@@ -446,6 +446,8 @@ export function ConvergenceTree3DView({data, turnDeg, colorEnabled, colorSeed}: 
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
     const projectedNodesRef = useRef<ProjectedNode[]>([]);
     const wheelTimerRef = useRef<number | null>(null);
+    const animationFrameRef = useRef<number | null>(null);
+    const animationBaseRef = useRef(1);
 
     const [containerSize, setContainerSize] = useState({width: 980, height: 620});
     const [zoom, setZoom] = useState(1);
@@ -454,6 +456,8 @@ export function ConvergenceTree3DView({data, turnDeg, colorEnabled, colorSeed}: 
     const [drag, setDrag] = useState<DragState | null>(null);
     const [hoverNode, setHoverNode] = useState<HoverNodeState | null>(null);
     const [isWheeling, setIsWheeling] = useState(false);
+    const [isAnimatingGrowth, setIsAnimatingGrowth] = useState(false);
+    const [animationProgress, setAnimationProgress] = useState(1);
 
     const geometry = useMemo(() => buildGeometry(data, turnDeg), [data, turnDeg]);
     const gradient = useMemo(() => buildTreeGradient(colorSeed), [colorSeed]);
@@ -472,6 +476,60 @@ export function ConvergenceTree3DView({data, turnDeg, colorEnabled, colorSeed}: 
         geometry.bounds.minY,
         geometry.bounds.minZ,
     ]);
+    const animationDurationMs = useMemo(
+        () => clamp(geometry.maxDepth * 220, 3600, 22000),
+        [geometry.maxDepth],
+    );
+
+    useEffect(() => {
+        setIsAnimatingGrowth(false);
+        setAnimationProgress(1);
+        animationBaseRef.current = 1;
+    }, [data, turnDeg]);
+
+    useEffect(() => {
+        if (!isAnimatingGrowth) {
+            if (animationFrameRef.current !== null) {
+                window.cancelAnimationFrame(animationFrameRef.current);
+                animationFrameRef.current = null;
+            }
+            return;
+        }
+        const start = performance.now();
+        const base = animationBaseRef.current;
+        const remain = Math.max(0.0001, 1 - base);
+        const duration = animationDurationMs * remain;
+        const step = (now: number) => {
+            const elapsed = now - start;
+            const t = clamp(base + elapsed / duration, 0, 1);
+            setAnimationProgress(t);
+            if (t >= 1) {
+                setIsAnimatingGrowth(false);
+                animationFrameRef.current = null;
+                animationBaseRef.current = 1;
+                return;
+            }
+            animationFrameRef.current = window.requestAnimationFrame(step);
+        };
+        animationFrameRef.current = window.requestAnimationFrame(step);
+        return () => {
+            if (animationFrameRef.current !== null) {
+                window.cancelAnimationFrame(animationFrameRef.current);
+                animationFrameRef.current = null;
+            }
+        };
+    }, [animationDurationMs, isAnimatingGrowth]);
+
+    function onStartGrowth() {
+        setAnimationProgress(0);
+        animationBaseRef.current = 0;
+        setIsAnimatingGrowth(true);
+    }
+
+    function onStopGrowth() {
+        animationBaseRef.current = animationProgress;
+        setIsAnimatingGrowth(false);
+    }
 
     useEffect(() => {
         if (!containerRef.current) {
@@ -634,8 +692,14 @@ export function ConvergenceTree3DView({data, turnDeg, colorEnabled, colorSeed}: 
             })
             .filter((segment): segment is NonNullable<typeof segment> => segment !== null);
         projectedSegments.sort((left, right) => right.depth - left.depth);
+        const layerSpan = 1 / Math.max(1, geometry.maxDepth);
 
         for (const segment of projectedSegments) {
+            const layerStart = Math.max(0, (segment.layer - 1) * layerSpan);
+            const localProgress = clamp((animationProgress - layerStart) / layerSpan, 0, 1);
+            if (localProgress <= 0) {
+                continue;
+            }
             const layerRatio = 1 - clamp(segment.layer / geometry.maxDepth, 0, 1);
             const perspective = clamp(28 / segment.depth, 0.36, 1.52);
             const alpha = clamp(0.24 + layerRatio * 0.5, 0.18, 0.86);
@@ -647,19 +711,32 @@ export function ConvergenceTree3DView({data, turnDeg, colorEnabled, colorSeed}: 
             context.lineWidth = width;
             context.beginPath();
             context.moveTo(segment.sourceX, segment.sourceY);
-            context.lineTo(segment.targetX, segment.targetY);
+            if (localProgress >= 0.999) {
+                context.lineTo(segment.targetX, segment.targetY);
+            } else {
+                const partialX = segment.sourceX + (segment.targetX - segment.sourceX) * localProgress;
+                const partialY = segment.sourceY + (segment.targetY - segment.sourceY) * localProgress;
+                context.lineTo(partialX, partialY);
+            }
             context.stroke();
         }
 
         const projectedNodes = geometry.nodes
             .map((node) => {
+                const layerStart = node.depth === 0 ? 0 : Math.max(0, (node.depth - 1) * layerSpan);
+                const nodeProgress = node.depth === 0
+                    ? 1
+                    : clamp((animationProgress - layerStart) / layerSpan, 0, 1);
+                if (nodeProgress <= 0) {
+                    return null;
+                }
                 const point = project(node.position);
                 if (!point) {
                     return null;
                 }
                 const layerRatio = 1 - clamp(node.depth / geometry.maxDepth, 0, 1);
                 const perspective = clamp(26 / point.depth, 0.38, 1.7);
-                const radius = clamp((1.28 + layerRatio * 1.85) * perspective, 1.2, 5.1);
+                const radius = clamp((1.28 + layerRatio * 1.85) * perspective * (0.45 + nodeProgress * 0.55), 1.2, 5.1);
                 return {
                     x: point.x,
                     y: point.y,
@@ -681,6 +758,7 @@ export function ConvergenceTree3DView({data, turnDeg, colorEnabled, colorSeed}: 
         geometry.maxDepth,
         geometry.modelCenter,
         geometry.segments,
+        animationProgress,
         pan.x,
         pan.y,
         rotation.x,
@@ -811,6 +889,79 @@ export function ConvergenceTree3DView({data, turnDeg, colorEnabled, colorSeed}: 
                     display: 'block',
                 }}
             />
+            <Box
+                sx={{
+                    position: 'absolute',
+                    top: 8,
+                    left: 10,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 0.7,
+                    zIndex: 20,
+                }}
+                onPointerDown={(event) => {
+                    event.stopPropagation();
+                }}
+                onPointerMove={(event) => {
+                    event.stopPropagation();
+                }}
+                onPointerUp={(event) => {
+                    event.stopPropagation();
+                }}
+                onClick={(event) => {
+                    event.stopPropagation();
+                }}
+            >
+                <Button
+                    size='small'
+                    variant='outlined'
+                    onClick={(event) => {
+                        event.stopPropagation();
+                        onStartGrowth();
+                    }}
+                    sx={{
+                        minWidth: 58,
+                        px: 0.95,
+                        py: 0.2,
+                        borderColor: 'rgba(164, 178, 208, 0.34)',
+                        color: 'text.secondary',
+                        bgcolor: 'rgba(255, 255, 255, 0.02)',
+                        fontSize: 11,
+                        textTransform: 'none',
+                        '&:hover': {
+                            borderColor: 'rgba(164, 178, 208, 0.5)',
+                            bgcolor: 'rgba(255, 255, 255, 0.06)',
+                        },
+                    }}
+                >
+                    Start
+                </Button>
+                <Button
+                    size='small'
+                    variant='outlined'
+                    onClick={(event) => {
+                        event.stopPropagation();
+                        onStopGrowth();
+                    }}
+                    disabled={!isAnimatingGrowth}
+                    sx={{
+                        minWidth: 56,
+                        px: 0.9,
+                        py: 0.2,
+                        borderColor: 'rgba(164, 178, 208, 0.28)',
+                        color: 'text.secondary',
+                        bgcolor: 'rgba(255, 255, 255, 0.02)',
+                        fontSize: 11,
+                        textTransform: 'none',
+                        '&:hover': {
+                            borderColor: 'rgba(164, 178, 208, 0.45)',
+                            bgcolor: 'rgba(255, 255, 255, 0.06)',
+                        },
+                    }}
+                >
+                    Stop
+                </Button>
+            </Box>
             {hoverNode ? (
                 <Paper
                     elevation={6}
@@ -854,7 +1005,8 @@ export function ConvergenceTree3DView({data, turnDeg, colorEnabled, colorSeed}: 
                 }}
             >
                 <Typography variant='caption' color='text.secondary'>
-                    3D tree: drag to orbit, wheel to zoom, Ctrl+drag to pan. Turn={turnDeg} deg.
+                    3D tree: drag to orbit, wheel to zoom, Ctrl+drag to pan. Turn={turnDeg} deg. Use Start/Stop for
+                    growth animation.
                 </Typography>
             </Box>
         </Box>
