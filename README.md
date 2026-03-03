@@ -1,6 +1,6 @@
 # Collatz Convergence Explorer
 
-Interactive project for exploring the `3n + 1` (Collatz) conjecture with a FastAPI backend and a React + Vite frontend.
+Interactive project for exploring the `3n + 1` (Collatz) conjecture with a React + Vite frontend.
 
 ## What is this project
 
