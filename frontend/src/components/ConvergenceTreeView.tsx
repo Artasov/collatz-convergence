@@ -300,7 +300,7 @@ export function ConvergenceTreeView({data, turnDeg, colorEnabled, colorSeed}: Pr
     );
     const safeMaxDepth = Math.max(1, toFinite(data.max_depth, 1));
     const gradient = useMemo(() => buildTreeGradient(colorSeed), [colorSeed]);
-    const showLabels = zoom * layout.nodeRadius >= 8.9;
+    const showLabels = zoom * layout.nodeRadius >= 4.6;
 
     const edgeElements = useMemo(
         () => layout.edges.map((edge, index) => {
@@ -392,12 +392,16 @@ export function ConvergenceTreeView({data, turnDeg, colorEnabled, colorSeed}: Pr
                                         : digits >= 5
                                             ? 0.5
                                             : digits >= 4
-                                                ? 0.57
-                                                : 0.7;
+                                                ? 0.72
+                                                : digits >= 3
+                                                    ? 0.9
+                                                    : digits >= 2
+                                                        ? 1.04
+                                                        : 1.14;
                         const fontSize = clamp(
                             layout.nodeRadius * sizeFactor,
-                            2.2,
-                            8.2,
+                            3.2,
+                            9.4,
                         );
                         const textLength = digits >= 5 ? layout.nodeRadius * 1.62 : undefined;
                         return (

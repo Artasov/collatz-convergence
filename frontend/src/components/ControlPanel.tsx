@@ -41,6 +41,10 @@ interface Props {
     setFlowSamplesInput: (value: string) => void;
     flowTailVisibility: number;
     setFlowTailVisibility: (value: number) => void;
+    cacheSizeLabel: string;
+    cacheEntryCount: number;
+    cacheClearing: boolean;
+    onClearCache: () => void;
     chartType: ChartType;
     setChartType: (value: ChartType) => void;
     metric: Metric;
@@ -453,6 +457,44 @@ export function ControlPanel(props: Props) {
                     </Select>
                 </FormControl>
             ) : null}
+
+            <Box
+                sx={{
+                    mt: 0.35,
+                    pt: 0.7,
+                    borderTop: '1px solid rgba(164, 178, 208, 0.16)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 1.2,
+                }}
+            >
+                <Typography variant='caption' color='text.secondary'>
+                    Cache: {props.cacheSizeLabel} ({props.cacheEntryCount})
+                </Typography>
+                <Button
+                    size='small'
+                    variant='outlined'
+                    onClick={props.onClearCache}
+                    disabled={props.cacheClearing}
+                    sx={{
+                        minWidth: 84,
+                        px: 1,
+                        py: 0.15,
+                        borderColor: 'rgba(164, 178, 208, 0.28)',
+                        color: 'text.secondary',
+                        bgcolor: 'rgba(255, 255, 255, 0.02)',
+                        fontSize: 11,
+                        textTransform: 'none',
+                        '&:hover': {
+                            borderColor: 'rgba(164, 178, 208, 0.45)',
+                            bgcolor: 'rgba(255, 255, 255, 0.06)',
+                        },
+                    }}
+                >
+                    {props.cacheClearing ? 'Clearing...' : 'Clear cache'}
+                </Button>
+            </Box>
 
             {isSidebar ? null : <Box sx={{flexGrow: 1}}/>}
         </Stack>

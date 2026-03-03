@@ -21,7 +21,14 @@ import {
     Typography,
 } from '@mui/material';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
-import {fetchNetworkChart, fetchPath, fetchTreeChart, fetchXYChart} from './api';
+import {
+    clearClientCache,
+    fetchClientCacheStats,
+    fetchNetworkChart,
+    fetchPath,
+    fetchTreeChart,
+    fetchXYChart,
+} from './api';
 import {ConvergenceFlow3DView} from './components/ConvergenceFlow3DView';
 import {ConvergenceTree3DView} from './components/ConvergenceTree3DView';
 import {ConvergenceTreeView} from './components/ConvergenceTreeView';
@@ -272,6 +279,16 @@ function parsePositiveValue(value: string, fallback: number): number {
     return Math.floor(parsed);
 }
 
+function formatCacheBytes(bytes: number): string {
+    if (bytes < 1024) {
+        return `${bytes} B`;
+    }
+    if (bytes < 1024 * 1024) {
+        return `${(bytes / 1024).toFixed(1)} KB`;
+    }
+    return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+}
+
 export default function App() {
     const initialParams = useMemo(() => getInitialSearchParams(), []);
     const hasInitialTurnParam = useMemo(() => initialParams.has('turn'), [initialParams]);
@@ -339,6 +356,9 @@ export default function App() {
     const [pathLoading, setPathLoading] = useState(false);
     const [pathError, setPathError] = useState<string | null>(null);
     const [pathData, setPathData] = useState<PathResponse | null>(null);
+    const [cacheEntries, setCacheEntries] = useState(0);
+    const [cacheBytes, setCacheBytes] = useState(0);
+    const [cacheClearing, setCacheClearing] = useState(false);
     const chartRequestRef = useRef(0);
     const pathRequestRef = useRef(0);
 
@@ -353,6 +373,10 @@ export default function App() {
         window.localStorage.removeItem(TREE_WARNING_SKIP_KEY);
     }, [skipTreeWarning]);
 
+    useEffect(() => {
+        void refreshCacheStats();
+    }, []);
+
     function parseSignedInteger(value: string, fallback: number): number {
         if (!value || value === '-') {
             return fallback;
@@ -366,6 +390,28 @@ export default function App() {
 
     function parsePositiveInteger(value: string, fallback: number): number {
         return parsePositiveValue(value, fallback);
+    }
+
+    async function refreshCacheStats() {
+        try {
+            const stats = await fetchClientCacheStats();
+            setCacheEntries(stats.entries);
+            setCacheBytes(stats.bytes);
+        } catch (statsError) {
+            console.error('Cannot read client cache stats.', statsError);
+        }
+    }
+
+    async function onClearClientCache() {
+        setCacheClearing(true);
+        try {
+            await clearClientCache();
+            await refreshCacheStats();
+        } catch (clearError) {
+            setError(clearError instanceof Error ? clearError.message : 'Cannot clear local cache.');
+        } finally {
+            setCacheClearing(false);
+        }
     }
 
     const treeTurnDeg = useMemo(
@@ -454,6 +500,7 @@ export default function App() {
             setNetworkData(null);
             setTreeData(null);
             setHistogramData(response.data.value_histogram ?? []);
+            void refreshCacheStats();
         } catch (requestError) {
             if (chartRequestRef.current !== requestId) {
                 return;
@@ -482,6 +529,7 @@ export default function App() {
             setXYData(null);
             setTreeData(null);
             setHistogramData(response.data.value_histogram ?? []);
+            void refreshCacheStats();
         } catch (requestError) {
             if (chartRequestRef.current !== requestId) {
                 return;
@@ -511,6 +559,7 @@ export default function App() {
             setXYData(null);
             setNetworkData(null);
             setHistogramData([]);
+            void refreshCacheStats();
         } catch (requestError) {
             if (chartRequestRef.current !== requestId) {
                 return;
@@ -538,6 +587,7 @@ export default function App() {
                 return;
             }
             setPathData(response);
+            void refreshCacheStats();
         } catch (requestError) {
             if (pathRequestRef.current !== requestId) {
                 return;
@@ -884,6 +934,10 @@ export default function App() {
                                     }
                                     flowTailVisibility={flowTailVisibility}
                                     setFlowTailVisibility={setFlowTailVisibility}
+                                    cacheSizeLabel={formatCacheBytes(cacheBytes)}
+                                    cacheEntryCount={cacheEntries}
+                                    cacheClearing={cacheClearing}
+                                    onClearCache={onClearClientCache}
                                     chartType={chartType}
                                     setChartType={setChartType}
                                     metric={metric}
