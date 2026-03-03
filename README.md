@@ -1,26 +1,18 @@
 # Collatz Convergence Explorer
 
-Client-side project for exploring the `3n + 1` (Collatz) conjecture with `React + TypeScript + Vite + MUI`.
+Interactive project for exploring the `3n + 1` (Collatz) conjecture with a FastAPI backend and a React + Vite frontend.
 
-## What it does
+## What is this project
 
-`Collatz Convergence Explorer` computes trajectories directly in the browser and visualizes them in multiple chart
-types:
+`Collatz Convergence Explorer` computes Collatz trajectories and shows them in several chart types:
 
-- `XY line`
-- `Transition network`
-- `Convergence tree (2D)`
-- `3D tree`
-- `3D flow arcs`
-- `Single number trace`
+- `XY line`: one point per start value `n`, metric is either `steps to 1` or `peak value`.
+- `Transition network (hairball)`: dense directed graph of transitions `n -> f(n)`.
+- `Convergence tree (2D)`: reverse layered tree from root `1`.
+- `3D coral tree`: 3D reverse tree projection for spatial exploration.
+- `Single number trace`: full path for one chosen start value.
 
-The UI and chart behavior stay the same, but no backend is required.
-
-## Serverless mode
-
-- All calculations run in the client in real time.
-- Heavy computed artifacts are cached in browser `IndexedDB`.
-- Cache info (size + entry count) and cache cleanup are available from the control panel.
+The goal is to make behavior, scale, and structure of trajectories easier to inspect visually.
 
 ## Collatz conjecture (short)
 
@@ -31,13 +23,24 @@ For positive integer `n`:
 
 The conjecture states that every positive starting value eventually reaches the cycle `4 -> 2 -> 1`.
 
+## Why this topic is interesting
+
+- Very simple rule, highly non-trivial global behavior.
+- Strong mix of number theory, graph structure, and computation.
+- Easy to experiment with, hard to prove in full generality.
+
 ## Useful references
 
 - Wikipedia: https://en.wikipedia.org/wiki/Collatz_conjecture
 - MathWorld: https://mathworld.wolfram.com/CollatzProblem.html
-- OEIS: https://oeis.org/wiki/Collatz_conjecture
+- OEIS (Collatz-related sequences): https://oeis.org/wiki/Collatz_conjecture
+- Numberphile video intro: https://www.youtube.com/watch?v=094y1Z2wpJg
 
-## Local run
+## Architecture
+
+- React + Vite + MUI charts and interaction UI
+
+## Manual run
 
 ```bash
 cd frontend
