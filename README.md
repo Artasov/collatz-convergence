@@ -1,7 +1,7 @@
 <div align="center">
   <img src="docs/img/poster.jpg" height="400" alt="Logo">
   <h1>Collatz Visualizer</h1>
-  <h3><strong>Interactive project for exploring the `3n + 1` (Collatz) conjecture with a FastAPI backend and a React + Vite frontend.</strong></h3>
+  <h3>Interactive project for exploring the 3n + 1 (Collatz) conjecture</h3>
   <h3>⭐ <strong>Star this repository if it helped you!</strong> ⭐</h3>
 </div>
 <div align="center">
@@ -11,10 +11,10 @@
 </div>
 
 <div align="center">
-  <a href="">
+  <a href="./README.md">
     <img src="https://img.shields.io/badge/English-blue?style=for-the-badge" alt="English">
   </a>
-  <a href="">
+  <a href="./README_RU.md">
     <img src="https://img.shields.io/badge/Русский-red?style=for-the-badge" alt="Русский">
   </a>
 </div>
