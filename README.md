@@ -1,6 +1,23 @@
-# Collatz Convergence Explorer
+<div align="center">
+  <img src="docs/img/poster.jpg" height="400" alt="Logo">
+  <h1>Collatz Visualizer</h1>
+  <h3><strong>Interactive project for exploring the `3n + 1` (Collatz) conjecture with a FastAPI backend and a React + Vite frontend.</strong></h3>
+  <h3>⭐ <strong>Star this repository if it helped you!</strong> ⭐</h3>
+</div>
+<div align="center">
+  <a href="https://artasov.github.io/collatz-convergence/">
+    <img src="https://img.shields.io/badge/Live-Demo-22c55e?style=for-the-badge" alt="Live Demo">
+  </a>
+</div>
 
-Interactive project for exploring the `3n + 1` (Collatz) conjecture with a FastAPI backend and a React + Vite frontend.
+<div align="center">
+  <a href="">
+    <img src="https://img.shields.io/badge/English-blue?style=for-the-badge" alt="English">
+  </a>
+  <a href="">
+    <img src="https://img.shields.io/badge/Русский-red?style=for-the-badge" alt="Русский">
+  </a>
+</div>
 
 ## What is this project
 
@@ -13,6 +30,8 @@ Interactive project for exploring the `3n + 1` (Collatz) conjecture with a FastA
 - `Single number trace`: full path for one chosen start value.
 
 The goal is to make behavior, scale, and structure of trajectories easier to inspect visually.
+
+## [LIVE DEMO](https://artasov.github.io/collatz-convergence/)
 
 ## Collatz conjecture (short)
 
