@@ -1,6 +1,5 @@
 import {useEffect, useMemo, useRef, useState} from 'react';
-import {Box, IconButton, Paper, Typography, useTheme,} from '@mui/material';
-import PlayArrowRoundedIcon from '@mui/icons-material/PlayArrowRounded';
+import {Box, Button, Paper, Typography, useTheme} from '@mui/material';
 import ForceGraph2D from 'react-force-graph-2d';
 import type {TreeData} from '../types';
 
@@ -20,7 +19,7 @@ interface GraphLink {
     source: string;
     target: string;
     value: number;
-    order: number;
+    key: string;
 }
 
 export function NetworkChartView({data}: Props) {
@@ -55,11 +54,11 @@ export function NetworkChartView({data}: Props) {
             steps_to_1: node.steps_to_1,
             val: Math.max(1.8, Math.log10(node.hits + 1) * 4),
         }));
-        const links: GraphLink[] = data.edges.map((edge, index) => ({
+        const links: GraphLink[] = data.edges.map((edge) => ({
             source: edge.source,
             target: edge.target,
             value: Math.max(1, Math.log10(edge.weight + 1)),
-            order: index,
+            key: `${edge.source}:${edge.target}`,
         }));
 
         const degreeById = new Map<string, number>();
@@ -68,24 +67,88 @@ export function NetworkChartView({data}: Props) {
             degreeById.set(link.target, (degreeById.get(link.target) ?? 0) + 1);
         }
 
+        const outgoingBySource = new Map<string, GraphLink>();
+        const incomingCount = new Map<string, number>();
+        for (const link of links) {
+            if (!outgoingBySource.has(link.source)) {
+                outgoingBySource.set(link.source, link);
+            }
+            incomingCount.set(link.target, (incomingCount.get(link.target) ?? 0) + 1);
+        }
+
+        const startNodes = [...nodes]
+            .filter((node) => (incomingCount.get(node.id) ?? 0) === 0 && outgoingBySource.has(node.id))
+            .sort((left, right) => {
+                if (left.steps_to_1 !== right.steps_to_1) {
+                    return right.steps_to_1 - left.steps_to_1;
+                }
+                return Number(left.name) - Number(right.name);
+            });
+
+        const fallbackStarts = [...nodes]
+            .filter((node) => outgoingBySource.has(node.id))
+            .sort((left, right) => {
+                if (left.steps_to_1 !== right.steps_to_1) {
+                    return right.steps_to_1 - left.steps_to_1;
+                }
+                return Number(left.name) - Number(right.name);
+            });
+
+        const animationStartNodes = startNodes.length > 0 ? startNodes : fallbackStarts;
+        const revealedKeys = new Set<string>();
+        const revealSequence: string[] = [];
+        const guardLimit = nodes.length + 8;
+
+        for (const startNode of animationStartNodes) {
+            let current = startNode.id;
+            let guard = 0;
+            while (guard < guardLimit) {
+                const nextLink = outgoingBySource.get(current);
+                if (!nextLink) {
+                    break;
+                }
+                if (!revealedKeys.has(nextLink.key)) {
+                    revealedKeys.add(nextLink.key);
+                    revealSequence.push(nextLink.key);
+                }
+                current = nextLink.target;
+                guard += 1;
+            }
+        }
+
+        for (const link of links) {
+            if (revealedKeys.has(link.key)) {
+                continue;
+            }
+            revealedKeys.add(link.key);
+            revealSequence.push(link.key);
+        }
+
+        const revealOrder = new Map<string, number>();
+        for (let index = 0; index < revealSequence.length; index += 1) {
+            revealOrder.set(revealSequence[index], index);
+        }
+
         return {
             nodes,
             links,
             degreeById,
+            revealOrder,
+            revealCount: revealSequence.length,
         };
     }, [data.edges, data.nodes]);
 
     useEffect(() => {
-        setVisibleLinks(preparedData.links.length);
+        setVisibleLinks(preparedData.revealCount);
         setIsAnimating(false);
-    }, [preparedData.links.length]);
+    }, [preparedData.revealCount]);
 
     useEffect(() => {
         if (!isAnimating) {
             return;
         }
 
-        const linkCount = preparedData.links.length;
+        const linkCount = preparedData.revealCount;
         const tickMs = linkCount > 5000 ? 3 : linkCount > 2200 ? 4 : 7;
         const timerId = window.setInterval(() => {
             setVisibleLinks((current) => {
@@ -98,7 +161,7 @@ export function NetworkChartView({data}: Props) {
         }, tickMs);
 
         return () => window.clearInterval(timerId);
-    }, [isAnimating, preparedData.links.length]);
+    }, [isAnimating, preparedData.revealCount]);
 
     const graphData = useMemo(
         () => ({
@@ -108,10 +171,24 @@ export function NetworkChartView({data}: Props) {
         [preparedData.links, preparedData.nodes],
     );
 
-    function onPlay() {
+    function getLinkKey(link: { source: unknown; target: unknown }): string {
+        const sourceId = typeof link.source === 'string'
+            ? link.source
+            : String((link.source as { id?: string }).id ?? '');
+        const targetId = typeof link.target === 'string'
+            ? link.target
+            : String((link.target as { id?: string }).id ?? '');
+        return `${sourceId}:${targetId}`;
+    }
+
+    function onStart() {
         setHoveredNode(null);
         setVisibleLinks(0);
         setIsAnimating(true);
+    }
+
+    function onStop() {
+        setIsAnimating(false);
     }
 
     return (
@@ -131,21 +208,67 @@ export function NetworkChartView({data}: Props) {
                 },
             }}
         >
-            <Box sx={{position: 'absolute', top: 8, right: 8, zIndex: 4}}>
-                <IconButton
+            <Box
+                sx={{
+                    position: 'absolute',
+                    top: 8,
+                    left: 10,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 0.7,
+                    zIndex: 20,
+                }}
+                onMouseDown={(event) => {
+                    event.stopPropagation();
+                }}
+                onClick={(event) => {
+                    event.stopPropagation();
+                }}
+            >
+                <Button
                     size='small'
-                    onClick={onPlay}
-                    disabled={isAnimating || preparedData.links.length === 0}
+                    variant='outlined'
+                    onClick={onStart}
+                    disabled={preparedData.revealCount === 0}
                     sx={{
-                        bgcolor: 'rgba(11, 14, 30, 0.75)',
-                        color: 'text.primary',
+                        minWidth: 58,
+                        px: 0.95,
+                        py: 0.2,
+                        borderColor: 'rgba(164, 178, 208, 0.34)',
+                        color: 'text.secondary',
+                        bgcolor: 'rgba(255, 255, 255, 0.02)',
+                        fontSize: 11,
+                        textTransform: 'none',
                         '&:hover': {
-                            bgcolor: 'rgba(18, 23, 43, 0.95)',
+                            borderColor: 'rgba(164, 178, 208, 0.5)',
+                            bgcolor: 'rgba(255, 255, 255, 0.06)',
                         },
                     }}
                 >
-                    <PlayArrowRoundedIcon fontSize='small'/>
-                </IconButton>
+                    Start
+                </Button>
+                <Button
+                    size='small'
+                    variant='outlined'
+                    onClick={onStop}
+                    disabled={!isAnimating}
+                    sx={{
+                        minWidth: 56,
+                        px: 0.9,
+                        py: 0.2,
+                        borderColor: 'rgba(164, 178, 208, 0.28)',
+                        color: 'text.secondary',
+                        bgcolor: 'rgba(255, 255, 255, 0.02)',
+                        fontSize: 11,
+                        textTransform: 'none',
+                        '&:hover': {
+                            borderColor: 'rgba(164, 178, 208, 0.45)',
+                            bgcolor: 'rgba(255, 255, 255, 0.06)',
+                        },
+                    }}
+                >
+                    Stop
+                </Button>
             </Box>
 
             <ForceGraph2D
@@ -160,7 +283,16 @@ export function NetworkChartView({data}: Props) {
                 d3VelocityDecay={0.45}
                 linkDirectionalArrowLength={2.6}
                 linkDirectionalArrowRelPos={1}
-                linkVisibility={(link) => (link as GraphLink).order < visibleLinks}
+                linkVisibility={(link) => {
+                    const order = preparedData.revealOrder.get(getLinkKey(link as {
+                        source: unknown;
+                        target: unknown
+                    }));
+                    if (order === undefined) {
+                        return false;
+                    }
+                    return order < visibleLinks;
+                }}
                 linkWidth={(link) => (link.value as number) * 0.45}
                 linkColor={() => theme.palette.primary.dark}
                 onNodeHover={(node) => setHoveredNode((node as GraphNode | null) ?? null)}
@@ -216,7 +348,7 @@ export function NetworkChartView({data}: Props) {
             <Box sx={{px: 1.2, py: 0.8}}>
                 <Typography variant='caption' color='text.secondary'>
                     This view uses force-directed layout to show the full transition network n -&gt; f(n).
-                    Nearby nodes share many transitions. Play animates progressive edge construction.
+                    Nearby nodes share many transitions. Start/Stop animate trajectories path-by-path.
                 </Typography>
             </Box>
         </Box>

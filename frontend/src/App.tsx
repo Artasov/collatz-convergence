@@ -55,6 +55,7 @@ interface Insight {
 }
 
 const TREE_WARNING_THRESHOLD = 32;
+const MAX_TREE_LAYERS = 60;
 const TREE_WARNING_SKIP_KEY = 'collatz_convergence_explorer_skip_tree_warning';
 const DEFAULT_TREE_COLOR_SEED = 137;
 
@@ -300,7 +301,10 @@ export default function App() {
         getInitialNumericString(initialParams, 'network_limit', '500'),
     );
     const [treeLayersInput, setTreeLayersInput] = useState(() =>
-        getInitialNumericString(initialParams, 'layers', '12'),
+        `${Math.min(
+            MAX_TREE_LAYERS,
+            parsePositiveValue(getInitialNumericString(initialParams, 'layers', '12'), 12),
+        )}`,
     );
     const [treeTurnInput, setTreeTurnInput] = useState(() =>
         getInitialSignedNumericString(initialParams, 'turn', '20'),
@@ -321,10 +325,16 @@ export default function App() {
         parsePositiveValue(getInitialNumericString(initialParams, 'network_limit', '500'), 500),
     );
     const [debouncedTreeLayers, setDebouncedTreeLayers] = useState(() =>
-        parsePositiveValue(getInitialNumericString(initialParams, 'layers', '12'), 12),
+        Math.min(
+            MAX_TREE_LAYERS,
+            parsePositiveValue(getInitialNumericString(initialParams, 'layers', '12'), 12),
+        ),
     );
     const [appliedTreeLayers, setAppliedTreeLayers] = useState(() =>
-        parsePositiveValue(getInitialNumericString(initialParams, 'layers', '12'), 12),
+        Math.min(
+            MAX_TREE_LAYERS,
+            parsePositiveValue(getInitialNumericString(initialParams, 'layers', '12'), 12),
+        ),
     );
     const [chartType, setChartType] = useState<ChartType>(() => getInitialChartType(initialParams));
     const [metric, setMetric] = useState<Metric>(() => getInitialMetric(initialParams));
@@ -638,7 +648,7 @@ export default function App() {
             if (!Number.isFinite(parsed) || parsed < 1) {
                 return;
             }
-            setDebouncedTreeLayers(Math.floor(parsed));
+            setDebouncedTreeLayers(Math.min(MAX_TREE_LAYERS, Math.floor(parsed)));
         }, 500);
         return () => window.clearTimeout(timerId);
     }, [treeLayersInput]);
@@ -912,9 +922,19 @@ export default function App() {
                                         onUnsignedNumericInputChange(value, setNetworkLimitInput)
                                     }
                                     treeLayersInput={treeLayersInput}
-                                    setTreeLayersInput={(value) =>
-                                        onUnsignedNumericInputChange(value, setTreeLayersInput)
-                                    }
+                                    setTreeLayersInput={(value) => {
+                                        const normalized = value.replace(/\D+/g, '');
+                                        if (!normalized) {
+                                            setTreeLayersInput('');
+                                            return;
+                                        }
+                                        const parsed = Number(normalized);
+                                        if (!Number.isFinite(parsed) || parsed < 1) {
+                                            setTreeLayersInput('1');
+                                            return;
+                                        }
+                                        setTreeLayersInput(`${Math.min(MAX_TREE_LAYERS, Math.floor(parsed))}`);
+                                    }}
                                     treeTurnInput={treeTurnInput}
                                     setTreeTurnInput={(value) =>
                                         onSignedNumericInputChange(value, (nextValue) => {

@@ -36,6 +36,8 @@ interface TreeAggregate {
     data: ConvergenceTreeData;
 }
 
+const MAX_TREE_LAYERS = 60;
+
 function nextValue(value: number): number {
     if (value <= 0) {
         throw new Error('Lothar-Collatz is defined for positive integers only.');
@@ -462,7 +464,7 @@ class CollatzClientService {
     }
 
     private async getTree(layers: number): Promise<TreeAggregate> {
-        const safeLayers = Math.floor(layers);
+        const safeLayers = Math.max(1, Math.min(MAX_TREE_LAYERS, Math.floor(layers)));
         const key = treeCacheKey(safeLayers);
         const cached = await readClientCache<TreeAggregate>(key);
         if (cached) {
